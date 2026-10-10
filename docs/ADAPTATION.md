@@ -21,6 +21,7 @@ a project small:
 | `docs/STACK-DECISION.md` | Keep the accepted decision and its rationale. | Replace a superseded decision with a new record or explicit revision. |
 | `project.toml` example comments | Useful while adapting. | Remove unused examples/comments once the real manifest is understood. |
 | `[[surfaces]] id = "template-bootstrap"` | Created by `make init` as a visible pending declaration, not a product check. | Replace it with the first real surface; never treat its governance check as product evidence. |
+| `[template].prune` paths and their surfaces | `make init` deletes the template checkout's own material (research, trials, a product it carries) and drops every `[[surfaces]]` entry whose path no longer exists. | Keep a product you want in a new project out of `prune`; declare its surface again if you restore it. |
 | `docs/handoffs/TEMPLATE.md` | Keep the one handover schema (`make handover` fills it). | Delete ignored `HANDOVER.md` after a session; keep a committed handoff only while another actor needs it. |
 | `docs/ISSUE_TEMPLATE.md` and `.github/ISSUE_TEMPLATE/` | Keep as `agent-first` intake schemas. | Do not turn them into a status board; remove/disable native forms in `regulated` or `minimal` profiles. |
 | `docs/legal/*.template.md` | Keep while a document may apply. | Replace with a reviewed final document and update `legal_document_paths`; unused templates may be removed from a project copy. |
