@@ -466,7 +466,9 @@ class Negotiator:
             return getattr(self, "trade_items", [])
         _, now_terms = standing(events)
         ref = now_terms.get("unit_price") or 0
-        their = [t for _, t in offers(events) if t.get("unit_price")]
+        # their sheet that is cheapest for us leads: its structure is the one we build on ("their structure"). A
+        # supplier's own alternative is a structure it accepts (P18: 5.30 at 14 days beat 5.40 at 30 days for us)
+        their = sorted((t for _, t in offers(events) if t.get("unit_price")), key=lambda t: self.c(t, std))
         if goal is None or not ref:
             return []
         items = st.menu(self.case, goal, std, self.est, ref, their)

@@ -275,7 +275,11 @@ class Run:
                     neg.sent()
                     if sup in self.last_call:
                         self.last_call[sup] -= 1
-                    events += [{**message, "from": "buyer"}, fetch_needed(table, reply)]
+                    tender_final = len(case["suppliers"]) > 1 and reply.get("status") == "final_offer"
+                    # a tender's final offer is time-critical: no attachment fetch before deciding (each call queues)
+                    events += [{**message, "from": "buyer"}, reply if tender_final else fetch_needed(table, reply)]
+                    if tender_final and self._take_final_now(table, case, threads, sup):
+                        return
                 if "result" in reply:
                     self.result = reply["result"]
                     return
@@ -284,6 +288,39 @@ class Run:
             self.emit("error", supplier=sup, error=f"{type(exc).__name__}: {exc}", trace=traceback.format_exc()[-2000:])
         finally:
             self.active.discard(sup)
+
+    def _take_final_now(self, table, case, threads, sup):
+        """A tender bidder's final offer, while we still hold the session: accept it at once if it is the cheapest
+        standing sheet we know of. The arena answers one call per session at a time, so leaving the gate first let
+        a rival's send and two status reads queue ahead of the accept; it arrived 75 s after the final offer, the
+        timeout repeated our last sheet, and the bidder walked away (P05, score 0). Only local data, no extra calls."""
+        alt = (case["buyer"].get("alternative") or {}).get("terms") or {}
+        c_alt = total_cost(case, alt) if alt.get("unit_price") else float("inf")
+        ranked = []
+        for s in live_threads(threads):
+            neg = self.negs.get(s)
+            sheet_id, terms = standing(threads[s])
+            if neg is None or not sheet_id or not terms.get("unit_price"):
+                continue
+            std = eco.full_standard(neg.dossier, standard_terms(threads[s]))
+            neg.prepare(threads[s], std)
+            if must_haves_ok(case, terms, std):
+                ranked.append((neg.c(terms, std), s, sheet_id))
+        ranked.sort()
+        if not ranked or ranked[0][1] != sup or ranked[0][0] >= c_alt:
+            return False
+        c, _, sheet_id = ranked[0]
+        if self.result is not None:  # we hold the gate, so no other thread closes meanwhile
+            return True
+        self.closing.set()
+        self.emit("decision", supplier=sup, round=None, action="accept",
+                  rationale=f"Cheapest bidder sent its final offer: accept at once (C(est) {c:,.0f}).")  # fmt: skip
+        try:
+            self.result = table.close(sup, {"action": {"type": "accept", "term_sheet_id": sheet_id}})
+        except ArenaError:
+            self.closing.clear()  # the case goes on: the normal close path picks the next sheet
+            return False
+        return True
 
     def _near_cap(self):
         cap = self.deadline() if callable(self.deadline) else self.deadline
@@ -415,7 +452,10 @@ class Run:
                             return table.close(sup, {"action": {"type": "accept", "term_sheet_id": t["offer_id"]}})
                 except ArenaError:
                     pass
-        move = closing_move(case, {s: e for s, e in threads.items() if not self._ended(s)})
+        open_threads = {s: e for s, e in threads.items() if not self._ended(s)}
+        if not live_threads(open_threads):  # every thread has ended: nothing left to accept or walk away from
+            return self.table.result()
+        move = closing_move(case, open_threads)
         self.emit(
             "decision",
             supplier=move["supplier_id"],

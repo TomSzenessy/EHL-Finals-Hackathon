@@ -82,7 +82,8 @@ class RemoteTable:
         sheet = [{"term_sheet_id": t["offer_id"], "terms": last.get("terms", {})}]
         return {
             "from": "arena",
-            "status": "walked_away" if t["closed"] else t["status"],
+            # the supplier's answer to the late move (e.g. a final offer) is in `timeouts`, not yet in `status`
+            "status": "walked_away" if t["closed"] else last.get("status") or t["status"],
             "term_sheets": [] if t["closed"] else sheet,
             "body": f"({error.detail})",
             "missing_fields": last.get("missing_fields", []),
