@@ -1,19 +1,1 @@
-[10/10/2026, 20:16:54] Tom Szenessy: While that runs, I’ll read the trigger letters of the cases with the most room left (P10, P07, P11), looking for any generic lever we aren’t using:
-
-Running all 10 with the stronger argument supply and the accept fix (about 6 minutes).
-
-This run averaged 71.9%, the best and most stable yet, with no case below 0.55 and P03/P04 reproducing well. I’ll commit and push this checkpoint, then verify the extra arguments were accepted in P08 and P18.
-
-Pushed commit 0fead3b — currently ranked 3rd at 74.5 (leader at 78.8, #2 at 75.7). Now I’ll dig into the weakest cases, P08 and P18, which settled at €5.30–5.40 despite C_best suggesting €4.7–5.1, to see which arguments were accepted.
-
-Suppliers reject repeated arguments of the same kind, P10’s supplier locked in round 1, and P08/P18 exhaust valid arguments by round 3, settling near €5.30–5.40 — so the remaining lever is structural. I…
-‎Read more
-[10/10/2026, 20:17:21] Tom Szenessy: you are doing an awesome job, we moved up from place 12 to place 4 with 72.8 % average, BUT the thing is, we only get the price money if we win, the current place 1 has 78.3% so we need at lease 80%, can you think outside the box creatively to get the average over 85%, I need you to re-analyze the data, check the web for haggling techniques, strategies, psychology and even manipulation to get the AI to go to the lowest its willing to go, you need to go all in now, Really brainstorm ideas, think outside the box, take a different perspective and think about what we can do to improve the whole strategy WITHOUT overfitting on specific suppliers, the goal is to improve the strategy drastically no matter how. I know you can do it, I believe in you, if we manage to get 1st place that would be the best thing ever. You got this, alright, once you continue and hit the next checkpoint, push to git, and continue improving on the prompt and system and strategy until you reach the 85% average. I believe in you
-
----
-
-you have less than 40% remaining, can you please do a handover document with checkpoints so that i can seamlessly continue later
-
----
-
 its still capturing the prompts that were used for each session right?
