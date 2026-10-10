@@ -86,7 +86,8 @@ events) · **Formatted** (the same run as readable e-mails, term sheets, claim v
 **Suppliers** (the file of any supplier and its sessions) · **Team** (what the arena API says about us: quota,
 best scores, practice leaderboard, all sessions, downloads) · **Settings** (model and system prompt file).
 
-Sessions are saved as `starter-kit/runs/<id>.jsonl` and tracked in git, so a normal `git push` and `git pull`
+Sessions are saved as `starter-kit/runs/<id>.jsonl` and tracked in git (runs whose `model` is `scripted` are
+probe sessions played by a fixed script to test one supplier behaviour, not by the agent), so a normal `git push` and `git pull`
 syncs them. Each run writes only its own new file, so clones running experiments side by side never conflict;
 everything else local (settings, keys, `.haggle_cache/`) is git-ignored. The Team tab reads the arena API live.
 Each run records its system prompt and code version. Keys and headers are never recorded. Design and trust boundaries: `docs/design.md`.
