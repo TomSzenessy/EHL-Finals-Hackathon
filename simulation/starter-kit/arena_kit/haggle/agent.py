@@ -553,6 +553,11 @@ class Negotiator:
         by_key = {m["key"]: m for m in items}
         keys = [k for k in (d.get("offers") or []) if k in by_key]
         keys = list(dict.fromkeys(keys))[: 1 if mode == "probe" else 3]
+        if mode == "send" and sum(m.get("from") == "buyer" for m in events) and "A" in by_key and "A" not in keys:
+            # after round 1 the package on their cheapest-for-us structure is always on the table: the model left it
+            # for a 14-day package and the supplier closed there, worse for us (P03: 427.49 at 14 days, 0.855,
+            # against 432.15 at 90 days, 0.923)
+            keys = ["A", *keys[:1]]
         if not keys:
             raise Feedback(f"Choose one to three packages from the OFFER MENU by key ({', '.join(by_key)}).")
         sheets = [by_key[k]["terms"] for k in keys]

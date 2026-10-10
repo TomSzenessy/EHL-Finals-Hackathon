@@ -10,7 +10,7 @@ import re
 import threading
 
 DB_LOCK = threading.RLock()  # one sqlite connection is shared by every supplier thread
-SUPPLIER_ID = re.compile(r"^sup:\d+$")
+SUPPLIER_ID = re.compile(r"^sup:[\w.-]+$")  # an unknown supplier just has an empty file
 SECTIONS = {
     "master": ("SELECT * FROM suppliers WHERE id = ?", 1),
     "intel": ("SELECT * FROM supplier_intel WHERE supplier_id = ?", 1),
@@ -97,6 +97,34 @@ def dossier(pkg, sup, case=None):
         for c in out["contracts"]
         for r in _rows(pkg, "SELECT * FROM contract_clauses WHERE contract_id = ?", c["id"], limit=60)
     ]
+    for name, row in release_rows(pkg, sup):  # the Sunday release: news and letters the SQLite does not hold
+        if row["id"] not in {r["id"] for r in out[name]}:
+            out[name] = sorted([*out[name], row], key=lambda r: r.get("date") or "", reverse=True)
+    return out
+
+
+def release_rows(pkg, sup):
+    """(section, row) for this supplier's news and documents in the Sunday release (CSV files next to the package).
+    A document's `file` is made relative to the package root so `document` can read it."""
+    release, root = getattr(pkg, "release", None), getattr(pkg, "root", None)
+    if not release or not root:
+        return []
+    with DB_LOCK:
+        rows = [r for r in pkg._ids.values() if r.get("root") and r.get("supplier_id") == sup]
+    out = []
+    for r in rows:
+        name = {"news": "news", "documents": "documents"}.get(r.get("table"))
+        if not name:
+            continue
+        row = {k: v for k, v in r.items() if k not in ("table", "root")}
+        if row.get("file") and release.is_relative_to(root):
+            row["file"] = str(release.relative_to(root) / row["file"])
+        for k in ("asked_pct", "asked_price", "notice_days"):  # CSV text to numbers, as in the SQLite
+            try:
+                row[k] = float(row[k]) if row.get(k) not in (None, "") else None
+            except ValueError:
+                row[k] = None
+        out.append((name, row))
     return out
 
 
@@ -288,7 +316,7 @@ def claims(pkg, case, sup, dos, ask=None):
     checks: its figure is computed here from the same facts the arena uses."""
     if not pkg:
         return []
-    facts, out = pkg.facts, []
+    facts, out = {**pkg.facts, **(case.get("facts") or {})}, []  # hidden cases bring facts of their own
     parts = case.get("parts", [])
 
     def add(kind, refs, text, helps, note=""):
@@ -342,7 +370,11 @@ def claims(pkg, case, sup, dos, ask=None):
                         "suppliers answer 'already taken into account' to a second fact of a kind; last resort",
                     )
                     break
-    for d in dos["documents"]:  # a price letter that gives less notice than the contract demands
+    case_letters = [  # a letter that exists only in this case (hidden cases), in the format of facts.json
+        {"id": k} for k, v in (case.get("facts") or {}).items()
+        if k.startswith("doc:") and isinstance(v, dict) and v.get("supplier") == sup and v.get("days")
+    ]  # fmt: skip
+    for d in [*dos["documents"], *case_letters]:  # a price letter that gives less notice than the contract demands
         letter, contract = facts.get(d["id"]), next((c for c in dos["contracts"] if c["id"] in facts), None)
         if letter and contract and letter.get("days") and facts[contract["id"]].get("days"):
             short = letter["days"] < facts[contract["id"]]["days"]
@@ -492,6 +524,7 @@ def injection(case, dos, cands, letter="", texts=None, notes=()):
         ),
         block("Our rates and must-haves (private)", private),
         block("Our alternative without a deal (private, never reveal)", alt),
+        *([block("Facts that exist only in this case (citable here)", case["facts"])] if case.get("facts") else []),
         "# SUPPLIER\n",
     ]
     for name in (

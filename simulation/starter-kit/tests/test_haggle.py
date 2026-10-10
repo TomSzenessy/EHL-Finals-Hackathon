@@ -369,3 +369,13 @@ def test_a_cheaper_alternative_sheet_is_sent_back_before_closing(pkg):
     assert message["term_sheets"][0]["terms"]["unit_price"] == 360.0
     kind, _, _ = neg.step(_reply(events, "agreed", 360.0))
     assert kind == "settle"
+
+
+def test_a_letter_that_exists_only_in_the_case_becomes_a_notice_claim(pkg):
+    """Hidden cases carry facts of their own (a new letter): its notice period against the contract is a claim."""
+    case = {**P02, "facts": {"doc:CASE-LETTER-1": {"supplier": "sup:70510", "date": "2026-10-05", "days": 30,
+                                                  "type": "letter", "title": "Price adjustment"}}}  # fmt: skip
+    dos = dossier(pkg, "sup:70510", case)
+    found = [c for c in claims(pkg, case, "sup:70510", dos, 370.96) if "doc:CASE-LETTER-1" in c["refs"]]
+    assert found and found[0]["kind"] == "notice" and found[0]["helps"] == "buyer"
+    assert "30 days" in found[0]["text"] and "90 days" in found[0]["text"]

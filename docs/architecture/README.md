@@ -13,6 +13,7 @@ Maintain one table when the project has more than one surface:
 | Surface | Path | Owner | Interface / entry point | Quality oracle | Verification |
 |---|---|---|---|---|---|
 | template | . | TomSzenessy | Repository governance tools | Deterministic kit checks | make check and kit tests |
+| template-bootstrap | . | — | Placeholder surface a fresh copy of this kit declares until its first product surface replaces it | Kit checks | make check |
 | negotiation-workbench | simulation | TomSzenessy | starter-kit/arena_kit/haggle; arena-haggle | A recorded run: every arena and model call inspectable, claims verified, score against the arena | uv run --directory starter-kit --extra ui pytest -q from simulation |
 
 `project.toml` is the machine-readable source for paths and commands. This table

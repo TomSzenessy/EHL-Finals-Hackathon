@@ -86,6 +86,35 @@ make check
     readme.write_text(content, encoding="utf-8")
 
 
+def drop_missing_surfaces(root: Path, manifest: str) -> str:
+    """Remove [[surfaces]] blocks (with their [surfaces.*] sub-tables) whose path no longer exists: a product the
+    template checkout carries is pruned from a new project, and its surface must go with it."""
+    out, block, path = [], None, None
+
+    def flush() -> None:
+        if block is not None and not (path and path != "." and not (root / path).exists()):
+            out.extend(block)
+
+    for line in manifest.splitlines(keepends=True):
+        stripped = line.strip()
+        if stripped == "[[surfaces]]":
+            flush()
+            block, path = [line], None
+            continue
+        if block is not None and stripped.startswith("[") and not stripped.startswith("[surfaces."):
+            flush()
+            block, path = None, None
+        if block is None:
+            out.append(line)
+            continue
+        block.append(line)
+        found = re.match(r'^path\s*=\s*"([^"]*)"', stripped)
+        if found and path is None:
+            path = found.group(1)
+    flush()
+    return "".join(out)
+
+
 def reset_template_surface(manifest: str) -> str:
     pattern = re.compile(
         r'(?ms)^\[\[surfaces\]\]\s*\nid = "template"\s*\npath = "\.".*?(?=^\[\[?[^\]]+\]\]?\s*$|^\Z)'
@@ -283,6 +312,7 @@ def initialize_project(root: Path, name: str, kind: str, owner: str | None = Non
     manifest = reset_template_surface(manifest)
     manifest = reset_vision_for_project(root, manifest, name, template_name)
     removed = prune_template_material(root, load_project(root))
+    manifest = drop_missing_surfaces(root, manifest)
     manifest = reset_repository_metadata(manifest)
     manifest = reset_packs(manifest)
     if owner:

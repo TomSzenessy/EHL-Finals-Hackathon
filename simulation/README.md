@@ -51,7 +51,10 @@ key, no quota; it only teaches the API, not the real suppliers).
    alternative. In an RFQ every call of the session is queued through one gate (the arena answers one at a time),
    every bidder's opening is priced before anyone is answered (so all first offers start from the cheapest
    target any bidder allows), only the two cheapest bidders keep negotiating after round 1, and once the cheapest bidder agrees the other
-   gets two last rounds against its price.
+   gets two last rounds against its price; a
+   final offer from the cheapest bidder is accepted at once, before any other call (the arena answers one call
+   per session at a time, and a final offer left waiting past 60 s walks away). After round 1 every offer keeps a
+   package on the supplier's cheapest-for-us structure.
 
 An infeasible target menu triggers a guarded counter rather than acceptance of an opening quote. In an RFQ,
 a bidder with an open counter cannot terminate other active bidders merely because its own strategy stops.

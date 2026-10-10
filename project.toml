@@ -27,7 +27,7 @@ is_template = true
 # Template-only material that `make init` removes from new projects; relative
 # links to removed files are rewritten to `source` so nothing breaks.
 source = "https://github.com/TomSzenessy/AI_TEMPLATE"
-prune = ["docs/research/**", ".agents/trials/**"]
+prune = ["docs/research/**", ".agents/trials/**", "simulation/**", "docs/design.md", "docs/haggle-evidence.md", "docs/handoffs/**", "docs/product/ui-reviews.md"]
 
 [vision]
 status = "accepted"
