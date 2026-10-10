@@ -51,7 +51,10 @@ How suppliers decide (general rules, learned from many replays; they hold for su
    this part ("we did not know that - a fair point", "we took it into account") buys a lower price. A round
    without new data gets "no new data, our calculation remains unchanged", a hold, and less patience. Facts that
    only describe us or the past (our delivery complaints, old order prices, a flat month) rarely move anyone.
-   Each claim carries a "strength"; spend strong ones first, one fresh one every round, and never repeat one.
+   Measured on many replays: an accepted fact takes 2-5% off their price and keeps them negotiating; a round
+   without one moves them under 1% and brings the final offer closer. Each claim carries a "strength"; spend
+   strong ones first, and put at least one unused claim whose "helps" is "buyer" into EVERY e-mail (a medium one
+   beats none). Never repeat one, and skip "weak" ones (old order prices almost never move anyone).
 3. Patience is short. After two or three rounds without a reason to move they send a "final offer", and code then
    accepts it, so every e-mail must contain a reason to move now.
 4. They tell you their currency. Lines like "faster payment would help us", "a fixed price over 36 months is not
@@ -124,6 +127,7 @@ class Shared:
         self.lock = threading.Lock()
         self.used = set()
         self.targets = {}  # supplier -> its target C: in an RFQ the cheapest one is reachable for everybody
+        self.theirs = {}  # supplier -> C of its cheapest sheet now (RFQ: what a rival's price is worth to us)
 
 
 def _fmt_terms(terms, base=None):
@@ -309,6 +313,11 @@ class Negotiator:
                 "PROBE: offer exactly package A, alone, in two or three warm sentences: thank them, say we are close "
                 "and can confirm today if they can meet this package."
             )
+        elif mode == "terms":
+            lines.append(
+                "TERMS TRADE: their price has not moved. Offer one or two of these packages: their own price, with "
+                "terms that matter to us. Say we accept their price if they can meet us on these terms."
+            )
         elif rnd == 1:
             lines.append("Round 1: offer two or three packages on different levers, with your strongest claims.")
         else:
@@ -361,9 +370,17 @@ class Negotiator:
             return "settle", "Their final offer: tested once already or close enough. Take it."
         if sched is None:
             return "send", None
+        if not sched.ours and target is not None and target < sched.c_target:
+            # a tender: open from the cheapest target any bidder allows, not from this bidder's own opening price
+            sched.c_anchor = min(sched.c_anchor, target - st.ANCHOR_BELOW * max(sched.c_open - target, 0))
         goal = sched.next_c(now, left)
         share = sched.band_share()
-        if share is not None:  # stay inside the band where suppliers agree: a share of their own latest counter
+        # The band is for a single supplier and a plain price: in a tender the rivals set the pace (P05: banded
+        # offers were agreed at once above a rival's price), and with a supplier-health charge C is U-shaped in price
+        # (P01: 92% of their price "cost" almost as much as their sheet, so the band jumped to their price).
+        if (
+            share is not None and len(self.case.get("suppliers", [])) < 2 and not eco.relationship_case(self.case)
+        ):  # stay inside the band where suppliers agree: a share of their own latest counter
             band = min(
                 (
                     self.c(complete_offer(self.case, {**t, "unit_price": round(t["unit_price"] * share, 2)}), std)
@@ -374,11 +391,62 @@ class Negotiator:
             )
             if band < now:  # with a supplier-health charge a deep cut can cost more than their sheet: no band there
                 goal = max(goal, band)
+        with self.shared.lock:
+            self.shared.theirs[self.sup] = now
+            rival = min((c for s_, c in self.shared.theirs.items() if s_ != self.sup), default=math.inf)
+        if rival < now:  # a tender: never offer a bidder more than the cheapest rival's sheet costs us
+            goal = min(goal, rival * 0.995)
+        if self.price_held(events) and self.terms_trade(events, std):
+            if min(m["c"] for m in self.trade_items) < rival:  # in a tender only if it would beat the cheapest rival
+                return "terms", None
         if goal >= now - max(1.0, 0.0005 * now):
             return "settle", "Our schedule has reached their sheet."
         return "send", goal
 
+    def price_held(self, events):
+        """Their last two counters carry the same price: they will not move on price ("management has frozen price
+        reductions; we can talk about terms instead")."""
+        prices = [
+            (m.get("term_sheets") or [{}])[0].get("terms", {}).get("unit_price")
+            for m in events
+            if m.get("from") != "buyer" and m.get("term_sheets")
+        ]
+        return len(prices) >= 3 and prices[-1] and prices[-2] and abs(prices[-1] - prices[-2]) <= 0.001 * prices[-2]
+
+    def terms_trade(self, events, std):
+        """Their own price, with the terms that are worth most to us: the longest payment, the latest start, the
+        tightest quality commitment, alone and together. Only sheets that lower our C. A price-rigid supplier often
+        gives terms (P03: the same list price at 90 days instead of 14 was worth EUR 26k)."""
+        _, now_terms = standing(events)
+        if not now_terms.get("unit_price"):
+            return []
+        now = self.their_c(events, std)
+        opts = self.case.get("term_options", {})
+        best = {}
+        if "payment_days" in self.case["negotiable"] and opts.get("payment_days"):
+            best["payment_days"] = max(opts["payment_days"])
+        if "effective_date" in self.case["negotiable"] and opts.get("effective_date"):
+            best["effective_date"] = max(opts["effective_date"])
+        if "ppm_commitment" in self.case["negotiable"] and opts.get("ppm_commitment"):
+            best["ppm_commitment"] = min(opts["ppm_commitment"])
+        variants = [{k: v} for k, v in best.items()] + ([best] if len(best) > 1 else [])
+        items, seen = [], set()
+        for v in variants:
+            sheet = complete_offer(self.case, {**now_terms, **v})
+            c = self.c(sheet, std)
+            if _struct(sheet) in seen or c >= now - max(1.0, 0.0005 * now) or not must_haves_ok(self.case, sheet, std):
+                continue
+            seen.add(_struct(sheet))
+            items.append({"terms": sheet, "c": c, "worth": 0, "tags": ["your price, our terms"]})
+        items.sort(key=lambda m: m["c"])
+        for i, m in enumerate(items[:3]):
+            m["key"] = "ABC"[i]
+        self.trade_items = items[:3]
+        return self.trade_items
+
     def offer_menu(self, events, std, goal, mode):
+        if mode == "terms":
+            return getattr(self, "trade_items", [])
         _, now_terms = standing(events)
         ref = now_terms.get("unit_price") or 0
         their = [t for _, t in offers(events) if t.get("unit_price")]
@@ -414,6 +482,8 @@ class Negotiator:
         std = eco.full_standard(self.dossier, standard_terms(events))
         self.prepare(events, std)
         self.observe(events, std)
+        with self.shared.lock:  # what this bidder's price is worth to us, for the other threads of a tender
+            self.shared.theirs[self.sup] = self.their_c(events, std)
         kind, goal = self.decide(events, std)
         if kind == "settle":
             return self.settle_or_rescue(events, std, goal)
@@ -425,7 +495,7 @@ class Negotiator:
         if not items:
             return "settle", None, {"rationale": "No package on the menu is cheaper than their sheet.", "attempts": 0}
         self.messages.append({"role": "user", "content": self.state(events, rivals, free, std, items, kind)})
-        meta = {"attempts": 0, "fallback": None, "goal_c": round(goal, 2), "mode": kind}
+        meta = {"attempts": 0, "fallback": None, "goal_c": None if goal is None else round(goal, 2), "mode": kind}
         why = None
         for _ in range(3):
             left = DECISION_BUDGET_S - (time.monotonic() - started)
@@ -492,6 +562,8 @@ class Negotiator:
                 f"The e-mail states {', '.join(loose[:3])} without a check behind it. A figure the arena cannot verify "
                 "costs trust: state facts only through the [[cN]] markers, prices only as the menu lists them."
             )
+        with self.shared.lock:  # reserved for the whole case now: a parallel thread must not pick the same ID
+            self.shared.used |= {r for r in taken if not r.startswith(PER_SUPPLIER)}
         self.pending, self.pending_c = taken, max(self.goal_now or 0, *(by_key[k]["c"] for k in keys))
         self.pending_structs = {_struct(t) for t in sheets}
         if mode == "probe":

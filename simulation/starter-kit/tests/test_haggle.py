@@ -291,3 +291,17 @@ def test_a_figure_without_a_check_behind_it_is_sent_back(pkg):
     allowed = "EUR 5.12, payment_days=30 | Copper rose 47.7 % in twelve months"
     assert unverified_figures("We offer EUR 5.12. Copper rose 47.7 % for you.", allowed) == []
     assert unverified_figures("Your on-time delivery was 83.0%, so EUR 4.99 is fair.", allowed) == ["83.0%", "EUR 4.99"]
+
+
+def test_a_supplier_that_holds_its_price_is_offered_its_price_on_better_terms(pkg):
+    neg, events = _negotiator(pkg), _thread()
+    neg.step(events)
+    neg.sent()
+    events = _reply(events, "open", 368.0)
+    neg.step(events)
+    neg.sent()
+    events = _reply(events, "open", 368.0)  # the same price twice: it will not move on price
+    kind, message, meta = neg.step(events)
+    assert kind == "send" and meta["mode"] == "terms"
+    sheet = message["term_sheets"][0]["terms"]
+    assert sheet["unit_price"] == 368.0 and sheet["payment_days"] == 90  # their price, our longest payment term

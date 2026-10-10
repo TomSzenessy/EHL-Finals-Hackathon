@@ -35,6 +35,7 @@ STEPS = tuple(float(x) for x in os.environ.get("HAGGLE_STEPS", "0.35,0.30,0.25,0
 # ladder that stays far below the counter is still climbing when the final offer comes (P11: 85-93% for five rounds,
 # then 45.50). HAGGLE_BAND overrides.
 BAND = tuple(float(x) for x in os.environ.get("HAGGLE_BAND", "0.92,0.94,0.955,0.965,0.975").split(","))
+RFQ_STEPS = (0.20, 0.17, 0.14, 0.12)  # in a tender the rivals' prices push: our own steps stay small
 LAST_ROUNDS_STEP = 0.30  # with two messages or fewer left we close the gap faster
 FINAL_PROBE_SHARE = 0.35  # a test of a "final offer": ask for this share of the gap to our last sheet
 PROBE_IF_CAPTURED_BELOW = 0.6  # ...only if we hold less than this share of the reachable room
@@ -203,7 +204,8 @@ class Schedule:
             return min(self.c_anchor, c_theirs)
         last = self.ours[-1]
         k = len(self.ours) - 1
-        share = LAST_ROUNDS_STEP if left <= 2 else STEPS[min(k, len(STEPS) - 1)]
+        steps = RFQ_STEPS if len(self.case.get("suppliers", [])) > 1 else STEPS
+        share = LAST_ROUNDS_STEP if left <= 2 else steps[min(k, len(steps) - 1)]
         return min(c_theirs, last + share * max(c_theirs - last, 0))
 
     def band_share(self):

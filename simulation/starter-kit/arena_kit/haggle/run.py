@@ -44,6 +44,15 @@ def code_version():
         return None
 
 
+def terms_of(threads, sup, sheet_id):
+    """The terms of a sheet a supplier sent in this thread, by its id."""
+    for m in threads[sup]:
+        for x in m.get("term_sheets") or []:
+            if x.get("term_sheet_id") == sheet_id:
+                return x.get("terms")
+    return None
+
+
 def fetch_needed(table, message):
     """Download the attachments the agent reads (quote PDFs, cost breakdowns, 8D reports) and add their text."""
     for att in message.get("attachments") or []:
@@ -353,12 +362,20 @@ class Run:
             t = self.table.client.thread(self.table.session_id, sup)
         except ArenaError:
             return
-        for m in reversed(t.get("messages") or []):
-            if m.get("from") != "buyer" and any(x.get("term_sheet_id") == offer_id for x in m.get("term_sheets") or []):
+        # a timeout's answer is kept under "timeouts", not "messages" (P05: agreed 29.24 came back as offer:…-3)
+        answers = [m for m in t.get("messages") or [] if m.get("from") != "buyer"]
+        answers += [
+            {"from": f"arena@{sup}", "status": x.get("status"), "body": x.get("text", ""),
+             "term_sheets": [{"term_sheet_id": x["offer_id"], "terms": x.get("terms") or {}}], "attachments": []}
+            for x in t.get("timeouts") or [] if x.get("offer_id")
+        ]  # fmt: skip
+        for m in reversed(answers):
+            if any(x.get("term_sheet_id") == offer_id for x in m.get("term_sheets") or []):
                 threads[sup].append(m)
                 why = f"The arena's standing sheet is now {offer_id}: read it back before accepting."
                 self.emit("decision", supplier=sup, round=None, action="refresh", rationale=why)
-                return
+                return True
+        return False
 
     def _close(self, table, case, threads):
         """Accept the cheapest standing sheet that keeps the must-haves and beats our alternative, else walk away.
@@ -376,6 +393,15 @@ class Run:
             except ArenaError as exc:
                 if exc.status not in (409, 422):
                     raise
+                try:  # the sheet was replaced meanwhile: accept the thread's current sheet if it is the same deal
+                    t = self.table.client.thread(self.table.session_id, sup)
+                    if not t.get("closed") and t.get("offer_id") and t["offer_id"] != sheet_id:
+                        if self._refresh(sup, threads, t["offer_id"]) and standing(threads[sup])[1] == terms_of(
+                            threads, sup, sheet_id
+                        ):
+                            return table.close(sup, {"action": {"type": "accept", "term_sheet_id": t["offer_id"]}})
+                except ArenaError:
+                    pass
         move = closing_move(case, {s: e for s, e in threads.items() if not self._ended(s)})
         self.emit(
             "decision",

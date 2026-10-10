@@ -268,18 +268,18 @@ NEWS_LEVER = {
     "full_order_book": ("supplier", "they are busy: do not threaten volume; trade lead time or term instead"),
     "allocation": ("supplier", "they ration supply: securing volume matters more than price"),
 }
-STRENGTH = {
-    "index": "strong",
-    "forecast": "strong",
-    "should-cost": "strong",
-    "competing quote": "strong",
+STRENGTH = {  # share "taken into account" across 101 hosted sessions in brackets
+    "notice": "strong",  # 7/7
+    "should-cost": "strong",  # 11/14
+    "forecast": "strong",  # 37/48
+    "competing quote": "strong",  # rival quotes 21/31
     "rival offer": "strong",
-    "notice": "strong",
-    "quality": "medium",
+    "index": "strong",  # falls; 47/81 for all index windows
+    "quality": "medium",  # 7/13
+    "delivery": "medium",  # 10/27: still better than a round without new data
     "news": "medium",
     "complaints": "medium",
-    "delivery": "weak",
-    "orders": "weak",
+    "orders": "weak",  # price history 4/44
 }
 
 
@@ -327,6 +327,21 @@ def claims(pkg, case, sup, dos, ask=None):
                     f"{back}-month window{share}; windows end on the same id: use one. Use (if it helps us): their input costs rose "
                     f"less than their ask implies, so the pass-through should be smaller",
                 )
+        for end in (_shift(last, -1), _shift(last, -2)):  # a fall ending earlier: other IDs, so a fresh argument
+            earlier = {k: g for k in range(1, 12) if (g := index_change(facts, s, k, end))}
+            if earlier:
+                k = min(earlier, key=lambda k: earlier[k][0])
+                chg, m1 = earlier[k]
+                if chg <= -1:
+                    add(
+                        "index",
+                        [f"idx:{s}@{m1}", f"idx:{s}@{end}"],
+                        f"{name} changed {chg:+.1f}% from {m1} to {end} (idx:{s}@{m1}, idx:{s}@{end}).",
+                        "buyer",
+                        f"{k}-month window ending {end}: a second fall on the same index (other IDs); "
+                        "use after the first, a supplier may say it already counted it",
+                    )
+                    break
     for d in dos["documents"]:  # a price letter that gives less notice than the contract demands
         letter, contract = facts.get(d["id"]), next((c for c in dos["contracts"] if c["id"] in facts), None)
         if letter and contract and letter.get("days") and facts[contract["id"]].get("days"):
@@ -376,31 +391,40 @@ def claims(pkg, case, sup, dos, ask=None):
                 f"estimate confidence +/-{f.get('confidence_pct')}%",
             )
         fc = sorted((k for k in facts if k.startswith(f"fc:{num}@")), reverse=True)
-        if fc and (f := facts[fc[0]]).get("change_pct") is not None:
+        for i, ref in enumerate(fc[:2]):  # the latest forecast, and the quarter before it (another ID)
+            f = facts[ref]
+            if f.get("change_pct") is None or (i and f["change_pct"] <= 0):
+                continue
             add(
                 "forecast",
-                [fc[0]],
-                f"Our volume forecast for {part} changed by {f['change_pct']:+.1f}% ({fc[0]}).",
+                [ref],
+                f"Our volume forecast for {part} changed by {f['change_pct']:+.1f}% ({ref}).",
                 "buyer" if f["change_pct"] > 0 else "supplier",
-                "weak alone: we do not commit volume; pair it with the committed annual quantity or a longer term",
+                "pair it with the committed annual quantity or a longer term"
+                + ("; an earlier quarter: use after the latest one" if i else ""),
             )
-    sc = [r for r in dos["scorecards"][:4] if r["id"] in facts]
-    if len(sc) >= 2:
+    for span, rows in (("latest", dos["scorecards"][:4]), ("the year before", dos["scorecards"][4:8])):
+        sc = [r for r in rows if r["id"] in facts]  # two spans of quarters: different IDs, two arguments
+        if len(sc) < 2:
+            continue
         otd, ppm = sum(r["otd_pct"] for r in sc) / len(sc), sum(r["ppm"] for r in sc) / len(sc)
         ids = ", ".join(r["id"] for r in sc)
+        later = "" if span == "latest" else "; the earlier quarters: use after the latest ones"
         add(
             "delivery",
             [r["id"] for r in sc],
             f"Your mean on-time delivery over {len(sc)} quarters ({ids}) was {otd:.1f}%.",
             "buyer" if otd < 95 else "supplier",
-            "use: a reliability gap whose cost we carry; price must reflect it. Shares sc: ids with the quality claim: use one of the two",
+            "a reliability gap whose cost we carry; shares its sc: ids with the quality claim of the same quarters"
+            + later,
         )
         add(
             "quality",
             [r["id"] for r in sc],
             f"Your mean quality over {len(sc)} quarters ({ids}) was {ppm:.0f} ppm.",
             "buyer" if ppm > 300 else "supplier",
-            "use: a quality record whose cost we carry; price must reflect it. Shares sc: ids with the delivery claim: use one of the two",
+            "a quality record whose cost we carry; shares its sc: ids with the delivery claim of the same quarters"
+            + later,
         )
     for n in dos["news"][:6]:  # news about this supplier: the arena verifies that it is about it
         lever = NEWS_LEVER.get(n.get("topic"))
