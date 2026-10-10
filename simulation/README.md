@@ -72,6 +72,8 @@ uv run --extra ui arena-haggle-final   # start before wave 1, leave it running u
 
 It polls only the final case list, plays each wave's cases in parallel and closes every case on its cheapest
 standing sheet 75 s before the wave's 8-minute cap. Each case is recorded under `runs/` and shows on the page.
+If it crashes, start it again: a case already opened is picked up from the arena (the session the 409 names,
+or our own open session of that case). All cases share the key's per-second call limit.
 
 ## Supplier files
 
