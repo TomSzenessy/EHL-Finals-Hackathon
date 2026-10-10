@@ -255,6 +255,19 @@ def analysis(pkg, case, dos, ask=None, texts=None):
 # and a lower price for 12-month index falls on their own cost drivers, our volume forecast, the should-cost estimate,
 # a quality record in a quality case and a rival's price; "it holds, but it does not change our calculation" for
 # delivery records, price history and one-month index windows.
+# News topics that are a lever, and for whom: a supplier looking for work or short of cash moves; a full order book
+# or an allocation strengthens it. Noise and other topics are not offered as arguments.
+NEWS_LEVER = {
+    "free_capacity": ("buyer", "they need work: a firm volume or a longer term buys price"),
+    "short_time_work": ("buyer", "they need work: a firm volume or a longer term buys price"),
+    "restructuring": ("buyer", "under strain: cash (faster payment) and a secure order matter more than margin"),
+    "credit_watch": ("buyer", "under strain: cash (faster payment) and a secure order matter more than margin"),
+    "credit_downgrade": ("buyer", "under strain: cash (faster payment) and a secure order matter more than margin"),
+    "new_plant": ("buyer", "new capacity to fill: volume buys price"),
+    "refocus": ("buyer", "this part may be outside their new focus: they may price it to keep it simple"),
+    "full_order_book": ("supplier", "they are busy: do not threaten volume; trade lead time or term instead"),
+    "allocation": ("supplier", "they ration supply: securing volume matters more than price"),
+}
 STRENGTH = {
     "index": "strong",
     "forecast": "strong",
@@ -263,6 +276,8 @@ STRENGTH = {
     "rival offer": "strong",
     "notice": "strong",
     "quality": "medium",
+    "news": "medium",
+    "complaints": "medium",
     "delivery": "weak",
     "orders": "weak",
 }
@@ -387,6 +402,38 @@ def claims(pkg, case, sup, dos, ask=None):
             "buyer" if ppm > 300 else "supplier",
             "use: a quality record whose cost we carry; price must reflect it. Shares sc: ids with the delivery claim: use one of the two",
         )
+    for n in dos["news"][:6]:  # news about this supplier: the arena verifies that it is about it
+        lever = NEWS_LEVER.get(n.get("topic"))
+        if lever and n["id"] in facts:
+            add(
+                "news",
+                [n["id"]],
+                f"We noted your news of {n['date']}: {n['headline']} ({n['id']}).",
+                lever[0],
+                lever[1],
+            )
+    for part in parts:  # quality notifications on this part: the arena checks their mean ppm
+        qn = [
+            r
+            for r in _rows(
+                pkg,
+                "SELECT id FROM quality_notifications WHERE supplier_id = ? AND part_id = ? ORDER BY qn_date DESC",
+                sup,
+                part,
+                limit=4,
+            )
+            if r["id"] in facts and facts[r["id"]].get("ppm") is not None
+        ]
+        if qn:
+            ppm = sum(facts[r["id"]]["ppm"] for r in qn) / len(qn)
+            ids = ", ".join(r["id"] for r in qn)
+            add(
+                "complaints",
+                [r["id"] for r in qn],
+                f"Our last {len(qn)} quality notifications on {part} with you ({ids}) averaged {ppm:.0f} ppm.",
+                "buyer",
+                "use in a quality discussion: defects we carry the cost of; ask for a tighter ppm commitment or a chargeback",
+            )
     for ref in case.get("refs", []):  # a competing quote the case hands us
         f = facts.get(ref) if ref.startswith("quote:") else None
         if f and f.get("part") in parts and f.get("supplier") != sup:

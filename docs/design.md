@@ -20,6 +20,10 @@ no manual sending.
 | C_best sat at 84-87% of the opening price where there is no supplier-health charge, and at the C-optimal margin where there is. | `economics.plan` searches every option down to 85% of their price; it reproduces the arena's `c_best` within 1% on P01, P02, P05 and P08. |
 | New verified data moves them ("we took it into account"); a round without it gets "no new data" and a hold. | Claims carry a `strength` (12-month index falls of their cost drivers, forecast, should-cost, rival prices: strong; delivery, price history, one-month windows: weak); the prompt spends two in round 1 and one new one each round. |
 | A structure first offered late was agreed at once at a price far above what it took earlier (P02). | A structure new to the supplier is priced 30% of the way from our anchor to the current step. |
+| After round 1 a supplier agreed to our sheet in about a third of rounds when it sat at 86-96% of its latest counter (101 sessions); final offers come by round 3-4. | From round 2 our sheet stays at least at 92/94/95.5/96.5/97.5% of their counter (`HAGGLE_BAND`) where that lowers our cost. |
+| Suppliers price payment days at their own cost of money (Nordmark: about 7% a year), and pay for security (an index clause, a long contract) far beyond its cash value. | The supplier's rate is read from its own sheets that differ only in payment days; menu packages are tagged (their structure, security, cash), and security packages stay on the menu even 1% above the goal. |
+| A ppm commitment without a chargeback costs the supplier no cash (P11: 45.50 at 300 and at 800 ppm). | It always goes to the tightest allowed value. |
+| A rival's live offer is fresh verified data every round. | RFQ: when the cheapest bidder agrees, the others get two more rounds against its price, then the case closes. |
 | A figure the model wrote itself came back `contradicted`, and a final offer followed. A supplier's own earlier quote is `irrelevant` unless the case refers to it. | Every %, EUR or ppm figure in the e-mail must come from a placed claim, a menu price or the supplier's own e-mail, else the e-mail goes back to the model. No own-quote claims. |
 
 - **One general playbook, no per-case rules** (`agent.SYSTEM`): every rule is stated as how suppliers behave, never
@@ -42,7 +46,8 @@ no manual sending.
 - **RFQs**: the arena answers one call per session at a time, so parallel threads queued past their 60 s (P05
   timed out twice). Every call of a session goes through one gate; after round 1 only the two cheapest bidders
   keep negotiating; a rival's lower standing offer is cited to the others; the target is the cheapest any bidder
-  allows; when the cheapest bidder settles the case closes on it at once (no keep-alive messages).
+  allows; when the cheapest bidder agrees, the others get two last rounds against its price; a cheapest bidder that
+  only sent a final offer is taken at once (no keep-alive messages).
 - **Live Final** (`final.py`, `arena-haggle-final`): polls only the final case list, opens each case of a running
   wave once, plays a wave's cases in parallel, and 75 s before the wave's cap (or the slowest round plus 15 s)
   closes each case on its cheapest standing sheet. A crashed run is resumed from the arena. Runs are recorded

@@ -42,15 +42,15 @@ key, no quota; it only teaches the API, not the real suppliers).
 
 1. The agent opens the case and reads the supplier's file from the data package.
 2. Code prices the target (the cheapest total cost C the case allows, with the supplier-health charge where the
-   score has one) and, each round, what our sheets may cost: a low, reasoned first sheet, then a shrinking share
-   of the gap to the supplier's best sheet. Every allowed structure is priced to that same cost (the offer menu).
+   score has one) and, each round, what our sheets may cost: a low, reasoned first sheet, then steps toward the
+   supplier's best sheet that keep us inside the band just under its latest counter where suppliers agree. Every allowed structure is priced to that same cost (the offer menu).
 3. The model picks one to three menu packages and the verified arguments (strongest first, a new one each round)
    and writes a friendly e-mail, leading with the lever that fits the case type. It never sets a price.
 4. `agreed` and `final_offer` are accepted at once: a supplier never goes below a sheet it agreed to, and every
    push after a final offer ended in a walk-away. The case closes on the cheapest standing sheet that beats your
    alternative. In an RFQ every call of the session is queued through one gate (the arena answers one at a time),
-   only the two cheapest bidders keep negotiating after round 1, and the case closes as soon as the cheapest
-   bidder settles.
+   only the two cheapest bidders keep negotiating after round 1, and once the cheapest bidder agrees the other
+   gets two last rounds against its price.
 
 ## Live Final
 

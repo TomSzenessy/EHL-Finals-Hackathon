@@ -15,13 +15,14 @@ from pathlib import Path
 from arena_kit.client import ArenaError
 from arena_kit.cost import must_haves_ok, total_cost
 from arena_kit.docs import read_document, standard_terms
-from arena_kit.play import RemoteTable, closing_move, live_threads, moves_left, standing
+from arena_kit.play import RemoteTable, closing_move, latest, live_threads, moves_left, standing
 
 from . import economics as eco
 from .agent import SYSTEM, Negotiator, Shared
 from .context import analysis, claims, document, dossier, injection, names
 
 RESULT_KEYS = ("deal", "supplier_id", "terms", "c_open", "c_deal", "c_best", "score", "end_reason", "must_haves_ok")
+LAST_CALL = 2  # rounds each other bidder gets once the cheapest one agreed (RFQ)
 FOCUS = 2  # an RFQ keeps negotiating with this many suppliers after round 1: the arena answers one call per session
 # at a time, so a third live thread makes each of the others wait past its 60 s
 SKIP_DOCS = ("delivery-schedule", "delivery_schedule")  # attachments the agent does not read: each fetch queues
@@ -168,6 +169,7 @@ class Run:
         self.result, self.negs, self.table = getattr(table, "done", None), {}, table
         self.shared, self.gate, self.close_lock = Shared(), threading.Lock(), threading.Lock()
         self.closing = threading.Event()
+        self.last_call = {}  # RFQ: supplier -> rounds left after the cheapest bidder agreed
         self.active, self.dormant = set(live_threads(threads)), set()
         workers = [threading.Thread(target=self._thread, args=(table, case, threads, s)) for s in live_threads(threads)]
         for w in workers:
@@ -221,6 +223,8 @@ class Run:
                         "decision", supplier=sup, round=rnd, action="cap", rationale="The wave's cap is near: close."
                     )
                     return
+                if self.last_call.get(sup, 1) <= 0:
+                    return  # its last call is used up: the case closes on the cheapest sheet
                 if rnd > 1 and self._out_of_focus(threads, sup):
                     self.dormant.add(sup)
                     self.emit(
@@ -249,6 +253,8 @@ class Run:
                             self.result = reply["result"]
                             return
                     neg.sent()
+                    if sup in self.last_call:
+                        self.last_call[sup] -= 1
                     events += [{**message, "from": "buyer"}, fetch_needed(table, reply)]
                 if "result" in reply:
                     self.result = reply["result"]
@@ -279,19 +285,29 @@ class Run:
         return sup not in [s for _, s in ranked[:FOCUS]]
 
     def _settled(self, table, case, threads, sup):
-        """A thread is done. Alone, the case closes when every thread is done. In an RFQ, if this supplier's sheet is
-        the cheapest standing sheet, close the case on it now: every further call only delays it, and a sheet left
-        unanswered for 60 s starts to time out."""
+        """A thread is done. Alone, the case closes when every thread is done. In an RFQ, when the cheapest bidder has
+        *agreed* (its sheet is locked, and a timeout only repeats that same sheet), every other bidder still talking
+        gets LAST_CALL more rounds with the leader's live price cited to it: a descending auction. A leader that only
+        sent a final offer is taken at once, since a timeout could push it to walk."""
         if len(case["suppliers"]) < 2:
             return
         with self.close_lock:
             if self.result is not None:
                 return
             cands = self._candidates(case, threads)
-            if cands and cands[0][1] == sup:
-                self.closing.set()  # no other thread starts another call: each one holds the session up to a minute
-                with self.gate:
-                    self.result = self._close(table, case, threads)
+            if not cands or cands[0][1] != sup:
+                return
+            others = [s for s in self.active - self.dormant - {sup} if s in live_threads(threads)]
+            if latest(threads[sup]).get("status") == "agreed" and others and not self.last_call:
+                self.last_call = {s: LAST_CALL for s in others}
+                why = f"Cheapest bidder agreed: {LAST_CALL} more rounds for the others against its price."
+                self.emit("decision", supplier=sup, round=None, action="last call", rationale=why)
+                return
+            if any(n > 0 for s, n in self.last_call.items() if s in self.active and s != sup):
+                return  # the others are still on their last call; the case closes when they finish
+            self.closing.set()  # no other thread starts another call: each one holds the session up to a minute
+            with self.gate:
+                self.result = self._close(table, case, threads)
 
     @staticmethod
     def _rivals(case, threads, sup):

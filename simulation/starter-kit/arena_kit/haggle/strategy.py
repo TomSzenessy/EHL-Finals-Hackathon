@@ -29,6 +29,12 @@ ANCHOR_BELOW_HEALTH = 0.0  # with a supplier-health charge a lower price raises 
 # (20/17/14/12%) never scored higher and scored lower on P07 (0.68 vs 0.72) and P18 (0.55 vs 0.61); suppliers fix
 # their final price from the data they were given, so slow steps only burn their patience. HAGGLE_STEPS overrides.
 STEPS = tuple(float(x) for x in os.environ.get("HAGGLE_STEPS", "0.35,0.30,0.25,0.20").split(","))
+# From round 2 our sheet never sits further below the supplier's latest counter than this share of it (round 2, 3,
+# 4, 5, then the last value). Across 101 hosted sessions a supplier agreed to our sheet in about a third of rounds
+# when it was 86-96% of its previous counter, never in round 1 below 90%, and sent its final offer by round 3-4: a
+# ladder that stays far below the counter is still climbing when the final offer comes (P11: 85-93% for five rounds,
+# then 45.50). HAGGLE_BAND overrides.
+BAND = tuple(float(x) for x in os.environ.get("HAGGLE_BAND", "0.92,0.94,0.955,0.965,0.975").split(","))
 LAST_ROUNDS_STEP = 0.30  # with two messages or fewer left we close the gap faster
 FINAL_PROBE_SHARE = 0.35  # a test of a "final offer": ask for this share of the gap to our last sheet
 PROBE_IF_CAPTURED_BELOW = 0.6  # ...only if we hold less than this share of the reachable room
@@ -111,12 +117,14 @@ def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE):
         key = repr(sorted((k, repr(v)) for k, v in complete_offer(case, t).items() if k != "unit_price"))
         asks[key] = min(asks.get(key, math.inf), t.get("unit_price") or math.inf)
     for base in structures(case):
+        base = {**base, **free_for_them(case, std, base)}
         sheet0 = complete_offer(case, {**base, "unit_price": ref_price})
         if not must_haves_ok(case, sheet0, std):
             continue
         key = repr(sorted((k, repr(v)) for k, v in sheet0.items() if k != "unit_price"))
         hi = min(ref_price * 1.02, asks.get(key, math.inf))
-        p = price_for(case, base, c_goal, std, est, ref_price * LOWEST_SHARE, hi)
+        secure = bool(base.get("index_clause"))  # a lever suppliers pay for beyond its cash value: keep it in reach
+        p = price_for(case, base, c_goal, std, est, ref_price * LOWEST_SHARE, hi, tol=0.01 if secure else 0.0015)
         if p is None:
             continue
         sheet = complete_offer(case, {**base, "unit_price": p})
@@ -130,10 +138,54 @@ def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE):
         g = (round(p, 2), round(c))
         if g not in groups or (item["own"], item["liking"]) > (groups[g]["own"], groups[g]["liking"]):
             groups[g] = item
-    out = sorted(groups.values(), key=lambda m: (not m["own"], -m["worth"], -m["liking"]))
-    for i, m in enumerate(out[:size]):
+    ranked = sorted(groups.values(), key=lambda m: (not m["own"], -m["worth"], -m["liking"]))
+    for m in ranked:
+        m["tags"] = tags(m["terms"], standing_terms, case)
+    # Every kind of lever stays on the menu: the cash ranking above cannot see what security (an index clause, a
+    # longer contract) is worth to a supplier, and suppliers pay for it (P02: agreed at 349 with a copper clause,
+    # countered 366+ without one).
+    out, kinds = [], set()
+    for m in ranked:
+        new_kind = any(t not in kinds for t in m["tags"])
+        if len(out) < size and (new_kind or len(out) < size - 2):
+            out.append(m)
+            kinds.update(m["tags"])
+    for i, m in enumerate(out):
         m["key"] = "ABCDEFGHIJ"[i]
-    return out[:size]
+    return out
+
+
+def free_for_them(case, std, base):
+    """Terms that cost the supplier no cash but save us money: a ppm commitment without a chargeback is a promise,
+    not a payment, so it goes to the tightest allowed value (P11: 45.50 at 300 ppm and at 800 ppm alike)."""
+    out = {}
+    options = case.get("term_options", {})
+    if "ppm_commitment" in case["negotiable"] and options.get("ppm_commitment"):
+        if not base.get("chargeback_eur_per_complaint"):
+            out["ppm_commitment"] = min(options["ppm_commitment"])
+    return out
+
+
+def tags(terms, theirs, case):
+    """What a package offers the supplier, in its own currency, for the model to match to what it said it values."""
+    out = []
+    if theirs and all(terms.get(k) == v for k, v in theirs.items() if k not in ("unit_price", "ppm_commitment")):
+        out.append("their structure")
+    if terms.get("index_clause"):
+        out.append("security: index clause")
+    months = case.get("term_options", {}).get("contract_months") or []
+    if months and terms.get("contract_months") == max(months):
+        out.append("security: longest contract")
+    volumes = case.get("term_options", {}).get("volume_per_year") or []
+    if volumes and terms.get("volume_per_year") == max(volumes):
+        out.append("security: most volume")
+    pay = terms.get("payment_days")
+    ref = theirs.get("payment_days") if theirs else None
+    if pay is not None and ref is not None and pay < ref:
+        out.append("cash: faster payment")
+    if pay is not None and ref is not None and pay > ref:
+        out.append("costs them: longer payment")
+    return out or ["price"]
 
 
 class Schedule:
@@ -153,6 +205,11 @@ class Schedule:
         k = len(self.ours) - 1
         share = LAST_ROUNDS_STEP if left <= 2 else STEPS[min(k, len(STEPS) - 1)]
         return min(c_theirs, last + share * max(c_theirs - last, 0))
+
+    def band_share(self):
+        """How close to their counter (as a share of its price) our next sheet must at least be; None in round 1."""
+        k = len(self.ours) - 1
+        return None if k < 0 else BAND[min(k, len(BAND) - 1)]
 
     def captured(self, c_now):
         """Share of the reachable room (opening to target) that a sheet at `c_now` holds."""

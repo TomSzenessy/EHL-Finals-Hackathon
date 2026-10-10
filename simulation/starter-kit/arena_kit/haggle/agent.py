@@ -69,6 +69,10 @@ How suppliers decide (general rules, learned from many replays; they hold for su
    threats, pressure, invented urgency, long e-mails and walls of data do not.
 
 How to write each round
+- The menu tags say what each package gives them: "security" (an index clause, the longest contract, most volume),
+  "cash" (faster payment) or "their structure". Match the tag to what they said they need: a supplier worried about
+  a raw material wants the index clause, one short of cash wants faster payment, one short of work wants the
+  longest contract. Security is often worth far more to them than its cost to us.
 - Round 1: open with their name and one sentence that shows you understand their situation in their own words
   (the cost pressure they cite, their capacity, their cash). Give the two strongest claims whose "helps" is
   "buyer", one sentence each, followed by what it means for the price. Offer two or three menu packages built on
@@ -76,7 +80,9 @@ How to write each round
   works best for your planning?").
 - Later rounds: start from what they just wrote. Concede what is true in one sentence. Answer their main argument
   with the strongest unused claim. Offer the package built on the structure they moved on last, plus at most one
-  other. Frame the step as a trade ("if you can meet us at ..., we can confirm ... this week").
+  other. From round 2 our package sits close to their last offer, so make it easy to say yes: thank them for the
+  movement, present the package as the one we can confirm and order on right away, and ask for a simple
+  confirmation ("if you can confirm package A, we will place the order this week").
 - Use what moves people, honestly: reciprocity (name what you give before what you ask), small yeses first (a date,
   a payment term), face-saving (let them present the result as their win), and what they keep by agreeing (a
   stable, simple order). Use their real name and company, never a placeholder.
@@ -201,7 +207,34 @@ class Negotiator:
             if target and math.isfinite(c_open):
                 self.schedule = st.Schedule(self.case, c_open, min(target["c"], c_open))
 
+    def learn_money(self, events):
+        """What money is worth to the supplier, read from its own sheets: two sheets that differ only in payment days
+        price the days ("with 14 days net: EUR 368.68" against 369.76 at 30 days is 7%/year). A supplier that values
+        cash less than we do sells long payment terms cheaply; one short of cash pays well for fast payment. The
+        estimate feeds what the menu thinks each package is worth to it."""
+        rates = []
+        for m in events:
+            if m.get("from") == "buyer":
+                continue
+            sheets = [s["terms"] for s in m.get("term_sheets") or [] if (s.get("terms") or {}).get("unit_price")]
+            for a in sheets:
+                for b in sheets:
+                    da, db = a.get("payment_days"), b.get("payment_days")
+                    if da is None or db is None or db <= da:
+                        continue
+                    if {k: v for k, v in a.items() if k not in ("unit_price", "payment_days")} != {
+                        k: v for k, v in b.items() if k not in ("unit_price", "payment_days")
+                    }:
+                        continue
+                    r = (b["unit_price"] - a["unit_price"]) / a["unit_price"] * 360 / (db - da)
+                    if 0.005 <= r <= 0.4:
+                        rates.append(r)
+        if rates and self.est is not None:
+            self.est["interest_rate"] = sum(rates) / len(rates)
+            self.est["usual_rate"] = self.case["buyer"]["interest_rate"]
+
     def observe(self, events, std):
+        self.learn_money(events)
         for _, terms in offers(events):
             if terms.get("unit_price"):
                 c = self.c(terms, std)
@@ -270,7 +303,7 @@ class Negotiator:
             "as listed):"
         )
         for m in items:
-            lines.append(f"- {m['key']}: {_fmt_terms(m['terms'])}")
+            lines.append(f"- {m['key']}: {_fmt_terms(m['terms'])}  [{'; '.join(m.get('tags') or [])}]")
         if mode == "probe":
             lines.append(
                 "PROBE: offer exactly package A, alone, in two or three warm sentences: thank them, say we are close "
@@ -329,6 +362,18 @@ class Negotiator:
         if sched is None:
             return "send", None
         goal = sched.next_c(now, left)
+        share = sched.band_share()
+        if share is not None:  # stay inside the band where suppliers agree: a share of their own latest counter
+            band = min(
+                (
+                    self.c(complete_offer(self.case, {**t, "unit_price": round(t["unit_price"] * share, 2)}), std)
+                    for _, t in offers(events)
+                    if t.get("unit_price")
+                ),
+                default=goal,
+            )
+            if band < now:  # with a supplier-health charge a deep cut can cost more than their sheet: no band there
+                goal = max(goal, band)
         if goal >= now - max(1.0, 0.0005 * now):
             return "settle", "Our schedule has reached their sheet."
         return "send", goal
