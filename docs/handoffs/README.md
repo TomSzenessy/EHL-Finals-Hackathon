@@ -26,3 +26,4 @@ conversation. A bad handoff restates the repository, assumes shared context, or
 claims verification that was not run.
 
 - [2026-10-10 Haggle strategy checkpoint](./2026-10-10-1825-haggle-strategy.md): RFQ fix, ten-case evidence, and the strict package-budget experiment to resume.
+- [2026-10-10 Haggle supplier model](./2026-10-10-2020-haggle-supplier-model.md): probe findings, tender and safety fixes, 77.7% practice, Sunday steps.
