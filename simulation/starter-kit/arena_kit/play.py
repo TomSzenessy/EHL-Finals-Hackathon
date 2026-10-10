@@ -28,6 +28,7 @@ MOVE_LIMIT_S = 60
 # (your decision plus a supplier reply of up to about a minute) plus a margin, if that is longer.
 CLOSE_BEFORE_CAP_S, ROUND_MARGIN_S = 90, 15
 RUNNING = re.compile(r"one session per case in the final: (\S+)")
+SESSION_ID = re.compile(r"\b([0-9a-f]{16})\b")
 # Practice: the case list shows every practice case file; only those marked hosted can be played
 # (a session on another is a 403). Without the marker every listed case counts as hosted.
 HOSTED_FIELD = "hosted"
@@ -43,13 +44,29 @@ class RemoteTable:
         try:
             r = self.client.open_session(case_id)
         except ArenaError as e:
-            running = RUNNING.search(str(e.detail)) if e.status == 409 else None
-            if not (running and self.case):
+            if e.status != 409 or not self.case:
                 raise
-            return self.resume(running.group(1))
+            sid = self.running_session(case_id, str(e.detail))
+            if not sid:
+                raise
+            return self.resume(sid)
         self.session_id = r["session_id"]
         log.info("session %s", self.session_id)
         return r["case"], r["threads"]
+
+    def running_session(self, case_id, detail):
+        """The session a 409 names: by the documented wording, any session id in the text, else our own open session
+        of this case from the session list (the exact wording of the final's 409 is not documented)."""
+        m = RUNNING.search(detail) or SESSION_ID.search(detail)
+        if m:
+            return m.group(1)
+        try:
+            listed = self.client.sessions("final")
+        except ArenaError:
+            return None
+        listed = listed if isinstance(listed, list) else listed.get("sessions", [])
+        mine = [x for x in listed if x.get("case_id") == case_id and x.get("status") == "open"]
+        return mine[-1]["session_id"] if mine else None
 
     def resume(self, session_id):
         """Pick up a final session this team already started (e.g. after a crash): every thread

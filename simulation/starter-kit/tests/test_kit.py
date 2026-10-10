@@ -379,3 +379,33 @@ def test_clients_of_one_key_share_the_per_second_limit():
         a._pace()
         b._pace()
     assert time.monotonic() - t0 >= 9 / 20 - 0.01  # ten calls of one key at 20 a second take at least 0.45 s
+
+
+def test_a_restarted_final_runner_finds_its_running_session_whatever_the_409_says():
+    """After a crash the final's second POST /v1/sessions is a 409 naming the running session; its exact wording is
+    not documented, so the session is taken from any id in the text, else from our own session list."""
+    from arena_kit.client import ArenaError
+    from arena_kit.play import RemoteTable
+
+    class Fake:
+        def __init__(self, detail):
+            self.detail = detail
+
+        def open_session(self, case_id):
+            raise ArenaError(409, self.detail)
+
+        def sessions(self, set_):
+            return [{"session_id": "aaaaaaaaaaaaaaaa", "case_id": "case:F01", "status": "ended"},
+                    {"session_id": "0123456789abcdef", "case_id": "case:F01", "status": "open"}]  # fmt: skip
+
+        def session(self, sid):
+            return {"status": "open", "threads": {"sup:1": {}}}
+
+        def thread(self, sid, sup):
+            return {"messages": [{"from": "sales@1", "body": "hi"}]}
+
+    for detail in ("one session per case in the final: 0123456789abcdef",
+                   "case:F01 already has session 0123456789abcdef", "you already play this case"):  # fmt: skip
+        table = RemoteTable(Fake(detail), {"case_id": "case:F01"})
+        case, threads = table.open("case:F01")
+        assert table.session_id == "0123456789abcdef" and threads["sup:1"]
