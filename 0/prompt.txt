@@ -1,0 +1,1 @@
+its still capturing the prompts that were used for each session right?
