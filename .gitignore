@@ -1,0 +1,52 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Generated output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+node_modules/
+vendor/
+.venv/
+*.egg-info/
+.DS_Store
+# Framework build directories (Next.js, Nuxt, SvelteKit, Astro, Vercel, Turborepo)
+.next/
+.nuxt/
+.svelte-kit/
+.astro/
+.vercel/
+.turbo/
+*.tsbuildinfo
+
+# Local tool state
+.review/
+.agent/
+/HANDOVER.md
+.security/findings.json
+.security/validated-findings.json
+.security/report.md
+.security/reports/
+*.swp
+
+# Agent host local state (generated adapters under .claude/ are tracked)
+.claude/settings.local.json
+.claude/worktrees/
+.mcp.local.json
+# Test runner output
+test-results/
+playwright-report/
