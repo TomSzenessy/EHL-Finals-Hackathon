@@ -18,7 +18,8 @@ the rule in code for each lesson: [`haggle-evidence.md`](./haggle-evidence.md).
   prices) and the honest persuasion moves (reciprocity, small yeses, face-saving). Fixed terms are listed each round as not
   negotiable; e-mails are English only.
 - **The offer menu** (`strategy.menu`): every allowed option combination priced to the same C (equal-cost
-  packages), terms that cost us nothing set to what the supplier asked for, its own structure first, never below
+  packages), except structures that at their price cost us over 5% more than the best one (a short term over a
+  longer need), terms that cost us nothing set to what the supplier asked for, its own structure first, never below
   78% of its price or above what it asked for the same structure. The model picks one to three by key and must
   write the prices as listed.
 - **The score is C, not the unit price.** `economics.py` prices every sheet with the arena's own cost function

@@ -40,6 +40,7 @@ LAST_ROUNDS_STEP = 0.30  # with two messages or fewer left we close the gap fast
 FINAL_PROBE_SHARE = 0.35  # a test of a "final offer": ask for this share of the gap to our last sheet
 PROBE_IF_CAPTURED_BELOW = 0.6  # ...only if we hold less than this share of the reachable room
 MENU_SIZE = 8
+TRAP_MARGIN = 0.05  # a structure costing this much more than the best one at their price is never offered
 LOWEST_SHARE = float(os.environ.get("HAGGLE_LOWEST_SHARE", "0.78"))  # never offer below this share of their price
 
 
@@ -117,10 +118,22 @@ def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE):
     for t in their:
         key = repr(sorted((k, repr(v)) for k, v in complete_offer(case, t).items() if k != "unit_price"))
         asks[key] = min(asks.get(key, math.inf), t.get("unit_price") or math.inf)
+    at_ref = {}  # every allowed structure at their price: what it costs us if they counter on it at that level
     for base in structures(case):
         base = {**base, **free_for_them(case, std, base)}
         sheet0 = complete_offer(case, {**base, "unit_price": ref_price})
-        if not must_haves_ok(case, sheet0, std):
+        if must_haves_ok(case, sheet0, std):
+            at_ref[repr(base)] = eco.cost(case, sheet0, std, est)
+    best_at_ref = min(at_ref.values(), default=math.inf)
+    for base in structures(case):
+        base = {**base, **free_for_them(case, std, base)}
+        sheet0 = complete_offer(case, {**base, "unit_price": ref_price})
+        if repr(base) not in at_ref:
+            continue
+        if at_ref[repr(base)] > best_at_ref * (1 + TRAP_MARGIN):
+            # At their price this structure costs us far more than the best one (a 12-month term leaves half the need
+            # uncovered): a supplier that counters on it at its own price level closes a trap (P08: 5.86 for 12
+            # months after we offered 4.51 for 12 months, score 0.10). Payment and clause variants stay.
             continue
         key = repr(sorted((k, repr(v)) for k, v in sheet0.items() if k != "unit_price"))
         hi = min(ref_price * 1.02, asks.get(key, math.inf))

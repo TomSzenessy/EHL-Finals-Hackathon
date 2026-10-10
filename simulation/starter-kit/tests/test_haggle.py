@@ -379,3 +379,20 @@ def test_a_letter_that_exists_only_in_the_case_becomes_a_notice_claim(pkg):
     found = [c for c in claims(pkg, case, "sup:70510", dos, 370.96) if "doc:CASE-LETTER-1" in c["refs"]]
     assert found and found[0]["kind"] == "notice" and found[0]["helps"] == "buyer"
     assert "30 days" in found[0]["text"] and "90 days" in found[0]["text"]
+
+
+def test_the_menu_never_offers_a_structure_that_is_a_trap_at_their_price(pkg):
+    """A 12-month term over a 2-year need is cheap only at a price the supplier never takes: priced at its own level
+    it leaves half the need uncovered, and a supplier that counters on it closes there (P08: 0.10)."""
+    from arena_kit.haggle import economics as eco
+    from arena_kit.haggle import strategy as st
+
+    fixed = {k: v for k, v in P02["fixed_terms"].items() if k != "contract_months"}
+    case = {**P02, "negotiable": [*P02["negotiable"], "contract_months"], "fixed_terms": fixed,
+            "term_options": {**P02["term_options"], "contract_months": [12, 24]},
+            "buyer": {**P02["buyer"], "horizon_years": 2}}  # fmt: skip
+    dos = dossier(pkg, "sup:70510", case)
+    std = eco.full_standard(dos, PDF_STANDARD)
+    est = eco.estimate(case, dos, std, ask=370.96)
+    items = st.menu(case, 1.0, std, est, 370.96, [{"unit_price": 370.96, "payment_days": 30, "index_clause": None}])
+    assert items and all(m["terms"]["contract_months"] == 24 for m in items)
