@@ -157,6 +157,20 @@ status = "active"
 quality_oracle = "Fresh-agent navigation, contract checks, and bounded review packet inspection"
 verification = [["tools/repoctl", "check"]]
 
+[[surfaces]]
+id = "negotiation-workbench"
+path = "simulation"
+kind = "web"
+owner = "TomSzenessy"
+status = "active"
+quality_oracle = "A recorded run: every arena and model call inspectable, claims verified, score against the arena"
+verification = [["uv", "run", "--directory", "starter-kit", "--extra", "ui", "pytest", "-q"]]
+
+[surfaces.preview]
+command = ["uv", "run", "--directory", "starter-kit", "--extra", "ui", "arena-haggle", "--no-browser", "--port", "{port}"]
+url = "http://127.0.0.1:{port}"
+routes = ["/"]
+
 # Reviewed capability pack adapted from Jakeschincariol/replica-skill (MIT).
 # `purpose` names the upstream skill each local skill adapts, because adapted
 # skills may be renamed; THIRD_PARTY_NOTICES.md holds the full mapping.

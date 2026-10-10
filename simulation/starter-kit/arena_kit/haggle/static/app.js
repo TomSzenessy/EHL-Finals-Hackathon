@@ -1,0 +1,276 @@
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const store = {
+  get: (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private window */ } },
+};
+const S = { mode: store.get("mode", "online"), tab: store.get("tab", "negotiate"), runs: [], runId: null, meta: null,
+            events: [], cfg: {}, cases: null, error: "", supplier: null, filter: "all", timer: null, open: new Set(), drawn: "" };
+
+async function api(path, opts) {
+  const r = await fetch(path, opts && { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(opts) });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || `HTTP ${r.status}`);
+  return body;
+}
+
+// ---- small renderers -------------------------------------------------------------------------
+const chip = (text, cls = "") => `<span class="chip ${esc(cls || text)}">${esc(text)}</span>`;
+const eur = (v) => (typeof v === "number" ? v.toLocaleString("en", { maximumFractionDigits: 2 }) : v);
+const when = (t) => new Date(t * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+function hl(value) {
+  return esc(JSON.stringify(value, null, 2)).replace(/(&quot;(?:\\.|[^&\\]|&(?!quot;))*&quot;)(\s*:)?|\b(true|false|null)\b|-?\d+\.?\d*(?:[eE][+-]?\d+)?/g,
+    (m, str, colon, lit) => str ? `<span class="${colon ? "k" : "s"}">${str}</span>${colon || ""}` : lit ? `<span class="b">${m}</span>` : `<span class="n">${m}</span>`);
+}
+const json = (v) => `<pre>${hl(v)}</pre>`;
+function sheet(s) {
+  const t = s.terms || s;
+  return `<div class="sheet">${s.term_sheet_id ? `<b>${esc(s.term_sheet_id)}</b>` : ""}${Object.entries(t).map(([k, v]) =>
+    `<span><b>${esc(k)}</b> ${esc(typeof v === "object" ? JSON.stringify(v) : eur(v))}</span>`).join("")}</div>`;
+}
+function table(rows, { wrap = [] } = {}) {
+  if (!rows || (Array.isArray(rows) && !rows.length)) return `<p class="muted">Nothing recorded.</p>`;
+  rows = Array.isArray(rows) ? rows : [rows];
+  const cols = [...new Set(rows.flatMap(Object.keys))];
+  return `<div class="scroll" tabindex="0"><table><thead><tr>${cols.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${
+    rows.map((r) => `<tr>${cols.map((c) => `<td class="${wrap.includes(c) ? "wrap" : ""}">${esc(r[c] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+const kv = (o) => `<div class="scroll" tabindex="0"><table><tbody>${Object.entries(o || {}).filter(([, v]) => v !== null && v !== "").map(([k, v]) =>
+  `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div>`;
+
+// ---- shell -----------------------------------------------------------------------------------
+function paintChrome() {
+  document.querySelectorAll("#mode button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.mode === S.mode));
+  document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === S.tab));
+  const sel = $("#runs");
+  sel.innerHTML = S.runs.length ? S.runs.map((r) => `<option value="${esc(r.run_id)}" ${r.run_id === S.runId ? "selected" : ""}>${
+    esc(`${when(r.started)} · ${r.mode} · ${r.case_id.replace("case:", "")} · ${r.status === "done" ? (r.deal ? `score ${(r.score ?? 0).toFixed(2)}` : "no deal") : r.status}`)}</option>`).join("")
+    : `<option>No sessions yet</option>`;
+}
+function render() {
+  paintChrome();
+  if (S.tab !== "raw") delete $("#view").dataset.raw;
+  ({ negotiate: viewNegotiate, raw: viewRaw, formatted: viewFormatted, suppliers: viewSuppliers })[S.tab]();
+}
+const setTab = (t) => { S.tab = t; store.set("tab", t); render(); };
+
+// ---- runs ------------------------------------------------------------------------------------
+async function loadRuns() {
+  S.runs = await api("/api/runs");
+  if (!S.runId && S.runs.length) await openRun(S.runs[0].run_id);
+  else paintChrome();
+}
+async function openRun(id) {
+  clearTimeout(S.timer);
+  S.runId = id; S.events = []; S.meta = null;
+  await pull();
+  render();
+}
+async function pull() {
+  if (!S.runId) return;
+  const r = await api(`/api/runs/${S.runId}?after=${S.events.length}`);
+  S.events.push(...r.events); S.meta = r.meta;
+  const i = S.runs.findIndex((x) => x.run_id === S.runId);
+  if (i >= 0) S.runs[i] = r.meta;
+  clearTimeout(S.timer);
+  if (["starting", "running"].includes(r.meta.status)) {
+    S.timer = setTimeout(async () => { await pull().catch(() => {}); render(); }, 1500);
+  }
+}
+
+// ---- negotiate -------------------------------------------------------------------------------
+async function viewNegotiate() {
+  const v = $("#view");
+  const m = S.meta;
+  v.innerHTML = `<div id="live"></div><h2>Pick a case</h2><div id="cases"><p class="muted">Loading…</p></div>`;
+  paintLive();
+  if (!S.cfg.llm_configured) $("#cases").insertAdjacentHTML("beforebegin", `<p class="err">No model configured: set LLM_MODEL and LLM_API_KEY in .env and restart.</p>`);
+  const key = S.mode;
+  if (!S.cases || S.cases.mode !== key) {
+    try { S.cases = { mode: key, ...(await api(`/api/cases?mode=${key}`)) }; S.error = ""; }
+    catch (e) { S.cases = null; S.error = e.message; }
+  }
+  if (S.tab !== "negotiate" || S.mode !== key) return;
+  const box = $("#cases");
+  if (S.error) { box.innerHTML = `<p class="err">${esc(S.error)}</p>`; return; }
+  const me = S.cases.me, busy = m && ["starting", "running"].includes(m.status);
+  const best = me?.best || {};
+  box.innerHTML = (me ? `<p class="muted">${esc(me.team_name)} · ${me.practice.left} of ${me.practice.limit} practice sessions left today. Each run uses one.</p>`
+    : `<p class="muted">Built-in scripted supplier: no key, no quota, not the real suppliers.</p>`) +
+    `<div class="grid">${S.cases.cases.map((c) => `<div class="card"><div><b>${esc(c.title)}</b></div>
+      <div class="muted">${chip(c.type.replace("_", " "))} ${esc(c.case_id)} · up to ${c.round_limit} rounds</div>
+      <div class="muted">${c.suppliers.map((s) => esc(s.name)).join(" · ")}</div>
+      ${best[c.case_id] !== undefined ? `<div class="muted">Best score so far ${best[c.case_id].toFixed(2)}</div>` : ""}
+      <button class="btn" data-case="${esc(c.case_id)}" ${busy || !S.cfg.llm_configured ? "disabled" : ""}>Haggle</button></div>`).join("")}</div>`;
+  box.querySelectorAll("[data-case]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try {
+      const meta = await api("/api/runs", { mode: S.mode, case_id: b.dataset.case });
+      S.runs.unshift(meta); S.cases = null;
+      await openRun(meta.run_id);
+    } catch (e) { S.error = e.message; render(); }
+  });
+}
+function paintLive() {
+  const m = S.meta, box = $("#live");
+  if (!box) return;
+  if (!m) { box.innerHTML = `<p class="muted">Choose a case below. The agent reads the supplier's file, then haggles for as many rounds as the case allows.</p>`; return; }
+  const sent = S.events.filter((e) => e.kind === "http" && e.method === "POST" && /\/messages$/.test(e.path) && !e.request?.message?.action).length;
+  const prices = S.events.filter((e) => e.kind === "decision" && e.action === "send").map((e) => e.message.term_sheets[0].terms.unit_price);
+  const r = m.result;
+  box.innerHTML = `<div class="card"><div>${chip(m.status)} <b>${esc(m.title || m.case_id)}</b></div>
+    <div class="muted">${esc(m.mode)} · ${esc(m.model)} · ${(m.suppliers || []).map((s) => esc(s.name)).join(", ")} · ${sent} e-mails sent${m.round_limit ? ` (limit ${m.round_limit} per supplier)` : ""}</div>
+    ${prices.length ? `<div class="path">Our asks: ${prices.map(eur).join(" → ")}</div>` : ""}
+    ${m.error ? `<div class="err">${esc(m.error)}</div>` : ""}
+    ${r ? `<div>${r.deal ? `Deal with ${esc(r.supplier_id)} at €${eur(r.terms?.unit_price)} · C €${eur(r.c_deal)} vs opening €${eur(r.c_open)} · score <b>${(r.score ?? 0).toFixed(2)}</b>` : `No deal (${esc(r.end_reason || "ended")})`}</div>` : ""}
+    <div class="tools" style="margin:8px 0 0"><button class="btn ghost" data-go="formatted">Read the negotiation</button><button class="btn ghost" data-go="raw">Raw JSON</button></div></div>`;
+  box.querySelectorAll("[data-go]").forEach((b) => b.onclick = () => setTab(b.dataset.go));
+}
+
+// ---- raw JSON --------------------------------------------------------------------------------
+function summary(e) {
+  if (e.kind === "http") return `<span>${esc(e.method)} ${esc(e.path)}</span> ${chip(e.status, e.status < 400 ? "ok" : "bad")} <span class="muted">${e.ms} ms</span>`;
+  if (e.kind === "llm") return `${chip("model", "model")} <span>${esc(e.supplier)}</span> ${e.error ? chip("failed", "bad") : ""} <span class="muted">${e.ms} ms</span>`;
+  if (e.kind === "decision") return `${chip("decision", "ok")} <span>${esc(e.supplier)} · round ${esc(e.round ?? "close")} · ${esc(e.action)}</span>`;
+  return `${chip(e.kind, "bad")} <span class="err">${esc(e.error || "")}</span>`;
+}
+function viewRaw() {
+  const v = $("#view");
+  if (!S.meta) { v.innerHTML = `<p class="muted">Run a negotiation first.</p>`; return; }
+  const stamp = `${S.runId}|${S.filter}|${S.events.length}`;
+  if (v.dataset.raw === stamp) return;  // nothing new: leave the rows the reader has open alone
+  v.dataset.raw = stamp;
+  const shown = S.events.filter((e) => S.filter === "all" || (S.filter === "arena" ? e.kind === "http" : e.kind !== "http"));
+  v.innerHTML = `<div class="tools"><div class="seg" id="filter">${["all", "arena", "agent"].map((f) => `<button data-f="${f}" aria-pressed="${S.filter === f}">${f === "arena" ? "Arena API" : f === "agent" ? "Model & decisions" : "All"}</button>`).join("")}</div>
+    <button class="btn ghost" id="copy">Copy all</button><button class="btn ghost" id="dl">Download</button><span class="muted">${shown.length} of ${S.events.length} events. Keys and headers are never recorded.</span></div>
+    ${shown.map((e) => `<details class="row" data-i="${e.i}" ${S.open.has(e.i) ? "open" : ""}><summary><span class="num">#${e.i}</span>${summary(e)}</summary><div class="body"></div></details>`).join("")}`;
+  v.querySelectorAll("#filter button").forEach((b) => b.onclick = () => { S.filter = b.dataset.f; viewRaw(); });
+  const draw = (d) => {
+    if (d.dataset.done) return;
+    d.dataset.done = 1;  // the payload is only drawn once it is opened: model requests are large
+    const e = S.events[+d.dataset.i], { i, at, kind, ...rest } = e;
+    const [req, res] = e.kind === "http" || e.kind === "llm" ? [e.request, e.response] : [null, null];
+    const other = Object.fromEntries(Object.entries(rest).filter(([k]) => !["request", "response"].includes(k)));
+    d.lastElementChild.innerHTML = (req !== null || res !== null ? `<h3>Request</h3>${json(req)}<h3>Response</h3>${json(res)}` : "") +
+      (Object.keys(other).length && e.kind !== "http" ? `<h3>${req !== null ? "Details" : "Event"}</h3>${json(other)}` : "");
+  };
+  v.querySelectorAll("details.row").forEach((d) => {
+    if (d.open) draw(d);
+    d.addEventListener("toggle", () => { d.open ? S.open.add(+d.dataset.i) : S.open.delete(+d.dataset.i); if (d.open) draw(d); });
+  });
+  const all = () => JSON.stringify({ meta: S.meta, events: S.events }, null, 2);
+  $("#copy").onclick = () => navigator.clipboard?.writeText(all());
+  $("#dl").onclick = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([all()], { type: "application/json" })); a.download = `${S.runId}.json`; a.click(); };
+}
+
+// ---- formatted -------------------------------------------------------------------------------
+function claimChips(results, ids) {
+  return (results || []).map((c) => chip(`argument ${c.index + 1}: ${c.result}`, c.result)).join(" ");
+}
+function viewFormatted() {
+  const v = $("#view");
+  if (!S.meta) { v.innerHTML = `<p class="muted">Run a negotiation first.</p>`; return; }
+  const m = S.meta, ev = S.events;
+  const open = ev.find((e) => e.kind === "http" && e.method === "POST" && e.path === "/v1/sessions");
+  const first = ev.find((e) => e.kind === "llm");
+  const sys = first && (first.request.system || first.request.messages?.find((x) => x.role === "system")?.content);
+  const ctx = first && first.request.messages?.find((x) => x.role === "user")?.content;
+  const bySup = {};
+  const col = (s) => bySup[s] ??= { rounds: [], open: open?.response?.threads?.[s]?.[0] };
+  const pending = {};
+  ev.forEach((e) => {
+    if (e.kind === "decision" && e.supplier) pending[e.supplier] = e;
+    if (e.kind === "http" && e.method === "POST" && /\/threads\/[^/]+\/messages$/.test(e.path)) {
+      const s = e.path.split("/threads/")[1].split("/")[0], msg = e.request?.message || {};
+      col(s).rounds.push({ dec: pending[s], msg, res: e.response, status: e.status });
+      delete pending[s];
+    }
+  });
+  const last = ev.filter((e) => e.kind === "http" && e.method === "GET" && /^\/v1\/sessions\/[^/]+$/.test(e.path)).pop();
+  const end = last?.response?.status === "ended" ? last.response : null;
+  const names = Object.fromEntries((m.suppliers || []).map((s) => [s.id, s.name]));
+  v.innerHTML = `<div class="card">${chip(m.status)} <b>${esc(m.title || m.case_id)}</b> <span class="muted">${esc(m.mode)} · ${esc(m.session_id || "")}</span>
+    ${m.result ? `<div>${m.result.deal ? `Deal with <b>${esc(names[m.result.supplier_id] || m.result.supplier_id)}</b> · C €${eur(m.result.c_deal)} (opening €${eur(m.result.c_open)}, best possible €${eur(m.result.c_best)}) · score <b>${(m.result.score ?? 0).toFixed(2)}</b>` : `No deal (${esc(m.result.end_reason || "ended")})`}</div>` : ""}
+    ${m.error ? `<div class="err">${esc(m.error)}</div>` : ""}</div>
+    ${first ? `<details class="card"><summary><b>The agent</b> · system prompt and supplier context it was given</summary><h3>System prompt</h3><pre>${esc(sys || "(sent as a separate system field)")}</pre><h3>Supplier context injected</h3><pre>${esc(ctx || "")}</pre></details>` : ""}
+    ${Object.entries(bySup).map(([s, c]) => {
+      const path = [c.open?.term_sheets?.[0]?.terms?.unit_price, ...c.rounds.map((r) => r.res?.term_sheets?.[0]?.terms?.unit_price)].filter((x) => x !== undefined);
+      return `<h2>${esc(names[s] || s)} <span class="muted">${esc(s)}</span></h2>${path.length ? `<p class="path">Their standing price: ${path.map(eur).join(" → ")}</p>` : ""}
+      ${c.open ? mail(c.open, "Opening quote", false) : ""}
+      ${c.rounds.map((r, n) => buyer(r, n + 1) + (r.res && !r.res.result ? mail(r.res, `Reply ${n + 1}`, true) : "")).join("")}`;
+    }).join("")}
+    ${(ev.filter((e) => e.kind === "error").map((e) => `<p class="err">${esc(e.supplier || "")} ${esc(e.error)}</p>`)).join("")}
+    ${end ? outcome(end, m) : ""}`;
+}
+function mail(msg, label, withClaims) {
+  return `<div class="card them"><div>${chip(msg.status || "open")} <b>${esc(label)}</b> <span class="muted">${esc(msg.from || "")}${msg.signals ? ` · replies in ${msg.signals.reply_delay_days} d` : ""}</span></div>
+    <div class="muted">${esc(msg.subject || "")}</div><div class="mail">${esc(msg.body || "")}</div>
+    ${(msg.term_sheets || []).map(sheet).join("")}
+    ${withClaims ? `<div>${claimChips(msg.claim_results)}</div>` : ""}
+    ${(msg.attachments || []).map((a) => chip(`📎 ${a.name}`)).join(" ")}
+    ${msg.missing_fields?.length ? `<div class="muted">Left out (closes on their standard terms): ${esc(msg.missing_fields.join(", "))}</div>` : ""}</div>`;
+}
+function buyer(r, n) {
+  const d = r.dec, m = r.msg;
+  if (m.action) return `<div class="card me"><b>We ${esc(m.action.type.replace("_", " "))}</b></div>`;
+  return `<div class="card me"><div>${chip("us", "ok")} <b>Round ${n}</b> ${d?.fallback ? chip("fallback", "warn") : ""} ${d?.attempts > 1 ? chip(`${d.attempts} model attempts`, "warn") : ""}
+    ${d?.claims?.length ? chip(`${d.claims.length} verified claim${d.claims.length > 1 ? "s" : ""}`, "ok") : ""}</div>
+    <div class="muted">${esc(m.subject || "")}</div><div class="mail">${esc(m.body || "")}</div>
+    ${(m.term_sheets || []).map((t, i) => sheet(t) + (d?.sheet_costs ? `<div class="muted" style="margin:-2px 0 4px">C €${eur(d.sheet_costs[i])}</div>` : "")).join("")}
+    ${d?.rationale ? `<div class="why">Why: ${esc(d.rationale)}</div>` : ""}
+    ${d?.fallback ? `<div class="err">Model problem: ${esc(d.fallback)}</div>` : ""}
+    ${r.status >= 400 ? `<div class="err">The arena refused this message (HTTP ${r.status}).</div>` : ""}</div>`;
+}
+function outcome(end, m) {
+  const res = end.result || {}, trace = end.trace || [];
+  return `<h2>Result</h2><div class="card">${m.result?.deal ? kv({ supplier: res.supplier_id, ...res.terms, "C deal": res.c_deal, "C open": res.c_open, "C best": res.c_best, score: res.score }) : `<p>No deal (${esc(end.end_reason)}).</p>`}
+    ${res.cost_breakdown ? `<h3>Where C comes from</h3>${kv(res.cost_breakdown)}` : ""}</div>
+    ${trace.length ? `<h2>The supplier's reasons</h2>${trace.map((t) => `<div class="card them"><b>Round ${esc(t.round)}</b> <span class="muted">${esc(t.actor)}</span><ul>${(t.reasons || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")}` : ""}`;
+}
+
+// ---- suppliers -------------------------------------------------------------------------------
+async function viewSuppliers() {
+  const v = $("#view");
+  const list = await api("/api/suppliers");
+  if (!list.length) { v.innerHTML = `<p class="muted">Suppliers appear here once you have run a negotiation.</p>`; return; }
+  const cur = S.meta?.suppliers?.map((s) => s.id) || [];
+  list.sort((a, b) => cur.includes(b.id) - cur.includes(a.id));
+  S.supplier = list.some((s) => s.id === S.supplier) ? S.supplier : list[0].id;
+  const s = list.find((x) => x.id === S.supplier);
+  v.innerHTML = `<div class="tools"><label class="muted">Supplier <select id="sup">${list.map((x) => `<option value="${esc(x.id)}" ${x.id === S.supplier ? "selected" : ""}>${esc(x.name)}${cur.includes(x.id) ? " (current)" : ""}</option>`).join("")}</select></label></div>
+    <h2 style="margin-top:0">Sessions</h2>${table(s.runs.map((r) => ({ when: when(r.started), arena: r.mode, case: r.case_id, outcome: r.status === "done" ? (r.deal ? `deal, score ${(r.score ?? 0).toFixed(2)}` : "no deal") : r.status })))}
+    <div id="dos"><p class="muted">Loading the supplier file…</p></div>`;
+  $("#sup").onchange = (e) => { S.supplier = e.target.value; viewSuppliers(); };
+  try { paintDossier(await api(`/api/suppliers/${encodeURIComponent(S.supplier)}`)); }
+  catch (e) { $("#dos").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+function paintDossier(d) {
+  const sec = (title, body) => `<details class="card" open><summary><b>${title}</b></summary>${body}</details>`;
+  const m = d.master || {}, i = d.intel || {};
+  $("#dos").innerHTML = `<h2>${esc(m.name)}</h2><p class="muted">${esc([m.country, m.category, m.incoterm, m.payment_days && `${m.payment_days} days net`, m.abc_class && `class ${m.abc_class}`].filter(Boolean).join(" · "))}</p>` +
+    sec("Company", kv({ owner: i.owner_type, parent: i.group_parent, founded: i.founded, staff: i.staff, turnover: i.turnover_band, "equity ratio %": i.equity_ratio_pct, "credit index": `${i.credit_index} (12 months ago ${i.credit_index_12m_ago})`, "VDA 6.3": i.vda63_grade, certifications: i.certifications })) +
+    sec("Delivery and quality by quarter", table(d.scorecards)) + sec("Quality notifications", table(d.quality)) +
+    sec("News", table(d.news, { wrap: ["body"] })) + sec("Past negotiations", table(d.history, { wrap: ["note"] })) +
+    sec("Prices we paid", table(d.prices)) + sec("Quotes", table(d.quotes, { wrap: ["remarks"] })) + sec("Our should-cost estimate", table(d.should_cost)) +
+    sec("Part and cost drivers", table(d.parts) + table(d.cost_drivers)) +
+    sec("Contracts", table(d.contracts) + table(d.clauses, { wrap: ["text"] })) +
+    sec("Sourcing and spend", table(d.sourcing) + table(d.spend) + kv(d.orders)) +
+    sec("Letters, e-mails and notes", table(d.documents.map(({ file, ...r }) => r), { wrap: ["subject"] }) +
+      d.documents.filter((x) => x.file).map((x) => `<details data-path="${esc(x.file)}"><summary>${esc(x.date)} · ${esc(x.kind)} · ${esc(x.subject)}</summary><pre>…</pre></details>`).join(""));
+  document.querySelectorAll("#dos details[data-path]").forEach((det) => det.addEventListener("toggle", async () => {
+    if (!det.open || det.dataset.done) return;
+    det.dataset.done = 1;
+    try { det.querySelector("pre").textContent = (await api(`/api/document?path=${encodeURIComponent(det.dataset.path)}`)).text; }
+    catch (e) { det.querySelector("pre").textContent = e.message; }
+  }));
+}
+
+// ---- boot ------------------------------------------------------------------------------------
+document.querySelectorAll("#mode button").forEach((b) => b.onclick = () => { S.mode = b.dataset.mode; store.set("mode", S.mode); S.cases = null; S.error = ""; render(); });
+document.querySelectorAll("#tabs button").forEach((b) => b.onclick = () => setTab(b.dataset.tab));
+$("#runs").onchange = (e) => openRun(e.target.value);
+(async () => {
+  try { S.cfg = await api("/api/config"); await loadRuns(); } catch (e) { S.error = e.message; }
+  render();
+})();

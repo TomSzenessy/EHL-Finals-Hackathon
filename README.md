@@ -1,5 +1,15 @@
 # AI_TEMPLATE
 
+## Haggling agent
+
+An agent that reads a supplier's file and haggles the price down over every round a case allows, plus a
+page to inspect each request, response and supplier record, lives in [simulation/](simulation/README.md):
+
+```bash
+cd simulation/starter-kit
+uv run --extra ui arena-haggle
+```
+
 <!-- repoctl:description -->
 Self-healing starting point for AI-agent-built projects of any size: docs bound to code, generated host adapters, delegation roles, and deterministic gates for any agent or model.
 <!-- /repoctl:description -->

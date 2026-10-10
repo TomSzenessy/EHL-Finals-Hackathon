@@ -14,7 +14,9 @@ usually faster than this page.
 - [`handoffs/`](./handoffs/README.md): continuation records; not indexed below, so link each from there.
 - Dated research notes beside the baseline:
   [MCP boundaries](./research/mcp-production-boundaries-2026-09-25.md),
-  [hardening](./research/primary-source-hardening-2026-09-25.md).
+  [hardening](./research/primary-source-hardening-2026-09-25.md),
+  [negotiation-arena buyer-agent strategy](./research/negotiation-arena-agent-strategy-2026-10-10.md),
+  [haggling floor discovery](./research/haggling-floor-discovery-2026-10-10.md).
 
 ## Documents
 
@@ -55,6 +57,7 @@ itself and this table cannot drift. Edit the line in the document, not here.
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Human contribution and review flow | A person or agent prepares a branch or pull request. |
 | [`../SECURITY.md`](../SECURITY.md) | Vulnerability disclosure and security contact | A vulnerability or security-sensitive change is involved. |
 | [`../.security/threat-model.md`](../.security/threat-model.md) | STRIDE threat model and accepted trust boundaries | A security-sensitive tool, CI path, or agent permission is reviewed. |
+| [`design.md`](./design.md) | Haggle agent and page: decisions and trust boundaries | Building or reviewing the simulation agent or its page. |
 | [`engineering.md`](./engineering.md) | Modular design, single source of truth, dependency, and cleanup rules | Code is being changed, refactored, or reviewed. |
 | [`security.md`](./security.md) | Secure implementation baseline | Auth, secrets, CI, dependencies, deployment, or untrusted input changes. |
 | [`architecture/README.md`](./architecture/README.md) | Current structure, seams, kit module map, and design rules | Adding a surface, changing dependencies, or locating ownership. |
@@ -70,6 +73,7 @@ itself and this table cannot drift. Edit the line in the document, not here.
 | [`legal/impressum.template.md`](./legal/impressum.template.md) | Draft provider-information scaffold | A public operator notice is required. |
 | [`legal/privacy-notice.template.md`](./legal/privacy-notice.template.md) | Draft privacy-notice scaffold | A public privacy notice is prepared for factual completion and review. |
 | [`legal/terms.template.md`](./legal/terms.template.md) | Draft terms scaffold | Public terms are prepared for factual completion and review. |
+| [`product/ui-reviews.md`](./product/ui-reviews.md) | Screenshot review history: verdicts, findings, reviewed code digests | judging UI quality or citing review evidence |
 
 ### Extensibility and evidence
 
