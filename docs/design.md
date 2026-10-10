@@ -23,7 +23,9 @@ no manual sending.
 | A figure the model wrote itself came back `contradicted`, and a final offer followed. A supplier's own earlier quote is `irrelevant` unless the case refers to it. | Every %, EUR or ppm figure in the e-mail must come from a placed claim, a menu price or the supplier's own e-mail, else the e-mail goes back to the model. No own-quote claims. |
 
 - **One general playbook, no per-case rules** (`agent.SYSTEM`): every rule is stated as how suppliers behave, never
-  as a case, supplier or price, because the final plays unknown suppliers. Fixed terms are listed each round as not
+  as a case, supplier or price, because the final plays unknown suppliers. It names the natural lever per case
+  type (later effective date, ppm and chargeback, covered need and delivery, fixed price vs index clause, rivals'
+  prices) and the honest persuasion moves (reciprocity, small yeses, face-saving). Fixed terms are listed each round as not
   negotiable; e-mails are English only.
 - **The offer menu** (`strategy.menu`): every allowed option combination priced to the same C (equal-cost
   packages), terms that cost us nothing set to what the supplier asked for, its own structure first, never below
