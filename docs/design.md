@@ -59,7 +59,8 @@ picker. Tabs: **Negotiate** (pick a case, each supplier is a button into its fil
 **Formatted** (the run as readable e-mails, term sheets, claim verdicts, the agent's one-line reasons, result,
 the supplier's reasons), **Suppliers** (the file of any supplier, with its sessions), **Team** (what the arena API
 says about us: quota, best score per case with the session and rounds behind it, unplayed hosted cases (they
-count 0), practice board, every session, downloads, health) and **Settings** (provider,
+count 0), every team's score per final case side by side (our rank and gap to the best per case, from
+`/v1/results/{team}`; for people only, the agent never reads it), practice board, every session, downloads, health) and **Settings** (provider,
 model, base URL, endpoint, timeout, write-only API key, system prompt file). Only the tabs that show the running
 negotiation redraw while it runs; Team, Suppliers and Settings never refetch or lose typed edits. A run whose
 process stopped mid-way (its file still says running) is shown as stopped; once per server start the page asks the

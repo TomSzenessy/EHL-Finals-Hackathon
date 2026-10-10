@@ -464,3 +464,49 @@ def test_a_sheet_that_breaks_a_must_have_is_sent_back_with_the_must_have_kept(pk
     assert sheet["unit_price"] == 365.0 and sheet["payment_days"] >= 45
     kind, _, _ = neg.step(_reply(events, "final_offer", 365.0))
     assert kind == "settle"  # once only
+
+
+def test_the_team_tab_lines_up_every_teams_score_per_final_case(pkg, tmp_path):
+    import httpx
+
+    from arena_kit.client import ArenaClient
+
+    def case(cid, score):
+        return {
+            "case_id": cid,
+            "title": cid,
+            "type": "rfq",
+            "status": "deal",
+            "score": score,
+            "rounds": 4,
+            "saved_eur": 10,
+        }
+
+    team = {
+        "Us": [case("case:H01", 0.5), case("case:H02", 0.9)],
+        "Them B": [case("case:H01", 0.7)],
+    }
+
+    def handle(req):
+        path = req.url.path
+        if path == "/v1/me":
+            return httpx.Response(200, json={"team_name": "Us"})
+        if path == "/v1/results":
+            return httpx.Response(
+                200, json={"teams": [{"team_name": n, "rank": i + 1, "total": 1} for i, n in enumerate(team)]}
+            )
+        name = httpx.URL(req.url).path.rsplit("/", 1)[1]
+        return httpx.Response(
+            200, json={"waves": [{"n": 1, "theme": "Opening", "cases": team[name.replace("%20", " ")]}]}
+        )
+
+    class FakeArenas(Arenas):
+        def client(self, mode):
+            return ArenaClient("http://arena", api_key="k", transport=httpx.MockTransport(handle))
+
+    client = TestClient(create_app(pkg, FakeArenas(pkg.facts), ScriptedLLM(), folder=tmp_path))
+    out = client.get("/api/compare?mode=online").json()
+    assert out["me"] == "Us" and [t["team_name"] for t in out["teams"]] == ["Us", "Them B"]
+    h01 = next(c for c in out["cases"] if c["case_id"] == "case:H01")
+    assert h01["teams"]["Us"]["score"] == 0.5 and h01["teams"]["Them B"]["score"] == 0.7
+    assert "Them B" not in next(c for c in out["cases"] if c["case_id"] == "case:H02")["teams"]

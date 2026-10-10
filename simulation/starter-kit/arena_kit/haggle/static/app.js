@@ -308,11 +308,45 @@ async function viewTeam() {
       "practice sessions used": `${m.practice?.used} of ${m.practice?.limit} (${m.practice?.left} left)`, "next one frees up": m.practice?.resets_at })}
       <h3>Best score per case</h3>${m.best && Object.keys(m.best).length ? table(bestRows(m.best, t.sessions, t.leaderboard)) : `<p class="muted">No scored session yet.</p>`}
       <p class="muted">The board counts every hosted case: a case we have not played scores 0 in the mean. Its "rounds" column adds up the messages of our best session per case, across all supplier threads (an RFQ with three suppliers counts the messages to each), so it can be far above the number of rounds of any one negotiation. Rounds only break exact ties.</p></div>`)}
+    <h2>Per case vs. the other teams</h2><div id="compare"><p class="muted">Asking the arena for every team's cases…</p></div>
     ${part("Practice leaderboard", t.leaderboard, (b) => table((b.teams || b.rows || []).map((r) => ({ rank: r.rank, team: r.team_name,
       total: r.total, played: r.played, deals: r.deals, rounds: r.rounds, "": r.team_name === me?.team_name ? "← us" : "" }))))}
     ${part("Our practice sessions", t.sessions, sessions)}${part("Our sandbox sessions", t.sandbox_sessions, sessions)}
     ${part("Data downloads", t.downloads, (d) => kv(Object.fromEntries(Object.entries(d).map(([k, x]) => [k, JSON.stringify(x)]))))}
     ${part("Arena health", t.health, (h) => kv(h))}`;
+  viewCompare(me?.team_name);
+}
+// Every team's score per final case, one row per case: who won it, where we stand and how far behind the best we are.
+// The arena only publishes per-team case results for the final (/v1/results), so before the first wave this is empty.
+async function viewCompare(us) {
+  let c;
+  try { c = await api(`/api/compare?mode=${S.mode}`); } catch (e) { c = { error: e.message }; }
+  const box = $("#compare");
+  if (S.tab !== "team" || !box) return;
+  if (c.error) { box.innerHTML = `<p class="err">${esc(c.error)}</p>`; return; }
+  us = c.me || us;
+  if (!c.cases.length) { box.innerHTML = `<p class="muted">No case results yet: the arena publishes every team's result per case only for the final, once its first wave has started.</p>`; return; }
+  const teams = [...c.teams].sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9));
+  const pts = (x) => (typeof x?.score === "number" ? x.score * 100 : null);
+  const cell = (x, best, mine) => {
+    if (!x) return `<td class="muted">–</td>`;
+    const p = pts(x);
+    const label = p == null ? x.status || "" : p.toFixed(1);
+    const title = [x.status, x.end_reason, x.rounds != null ? `${x.rounds} rounds` : "", x.saved_eur != null ? `€${eur(x.saved_eur)} saved` : ""].filter(Boolean).join(" · ");
+    return `<td class="${p != null && p === best ? "top" : ""} ${mine ? "us" : ""}" title="${esc(title)}">${esc(label)}</td>`;
+  };
+  const rows = c.cases.map((r) => {
+    const scores = teams.map((t) => pts(r.teams[t.team_name])).filter((p) => p != null);
+    const best = scores.length ? Math.max(...scores) : null;
+    const ours = pts(r.teams[us]);
+    const rank = ours == null ? "" : 1 + scores.filter((p) => p > ours).length;
+    return `<tr><th title="${esc(r.title || "")}">${esc(r.case_id.replace("case:", ""))}<br><small class="muted">W${esc(r.wave)} · ${esc(r.type || "")}</small></th>
+      <td>${rank ? `${rank} / ${scores.length}` : "–"}</td><td>${ours == null || best == null ? "–" : (ours - best).toFixed(1)}</td>
+      ${teams.map((t) => cell(r.teams[t.team_name], best, t.team_name === us)).join("")}</tr>`;
+  }).join("");
+  box.innerHTML = `<p class="muted">Final cases, score × 100 per team (hover a cell for status, rounds and € saved). Bold green: best on that case; highlighted column: us.</p>
+    <div class="scroll" tabindex="0"><table class="compare"><thead><tr><th>case</th><th>our rank</th><th>vs. best</th>${
+      teams.map((t) => `<th class="${t.team_name === us ? "us" : ""}">${esc(t.team_name)}<br><small class="muted">#${esc(t.rank ?? "")} · ${esc(t.total ?? "")}</small></th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 // ---- settings --------------------------------------------------------------------------------

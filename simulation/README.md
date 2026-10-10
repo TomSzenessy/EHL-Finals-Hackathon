@@ -88,7 +88,7 @@ the full text of every letter and note. The tab also lists every session you hav
 **Raw JSON** (every arena and model request and response, as sent; rows you open stay open while a run adds
 events) · **Formatted** (the same run as readable e-mails, term sheets, claim verdicts, reasons and result) ·
 **Suppliers** (the file of any supplier and its sessions) · **Team** (what the arena API says about us: quota,
-best scores, practice leaderboard, all sessions, downloads) · **Settings** (model and system prompt file).
+best scores, every team's score per final case, practice leaderboard, all sessions, downloads) · **Settings** (model and system prompt file).
 
 Sessions are saved as `starter-kit/runs/<id>.jsonl` and tracked in git (runs whose `model` is `scripted` are
 probe sessions played by a fixed script to test one supplier behaviour, not by the agent), so a normal `git push` and `git pull`
