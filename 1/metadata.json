@@ -1,0 +1,93 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4KXYT5M0WD4PS0T1806YNXH",
+  "session_id": "01a127d0-d5c2-7900-ae9b-e407532a8ed9",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-10T22:11:59.460873Z",
+  "branch": "new_branch_name2",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "docs/design.md",
+    "simulation/README.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6.1-sol",
+  "turn_id": "484989c2539e",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 59555,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 635520,
+    "output_tokens": 3575,
+    "api_call_count": 14,
+    "subagent_tokens_complete": true
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-10T22:11:59.44891Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 5,
+    "total_committed": 0,
+    "total_lines_changed": 5,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 1356,
+      "user_lines_removed": 5,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "docs/design.md": 10,
+        "simulation/README.md": 16,
+        "simulation/prompt-evaluation.md": 48,
+        "simulation/starter-kit/prompts/system.md": 79,
+        "simulation/starter-kit/runs/20261010-185001-09a4.jsonl": 120,
+        "simulation/starter-kit/runs/20261010-185001-4ce3.jsonl": 37,
+        "simulation/starter-kit/runs/20261010-185001-a751.jsonl": 24,
+        "simulation/starter-kit/runs/20261010-185152-10ec.jsonl": 51,
+        "simulation/starter-kit/runs/20261010-185152-8211.jsonl": 50,
+        "simulation/starter-kit/runs/20261010-185152-c9d9.jsonl": 22,
+        "simulation/starter-kit/runs/20261010-185335-bd13.jsonl": 29,
+        "simulation/starter-kit/runs/20261010-185615-13f0.jsonl": 25,
+        "simulation/starter-kit/runs/20261010-185615-1b8f.jsonl": 30,
+        "simulation/starter-kit/runs/20261010-185615-a5b2.jsonl": 22,
+        "simulation/starter-kit/runs/20261010-185700-0cad.jsonl": 123,
+        "simulation/starter-kit/runs/20261010-185704-4b1d.jsonl": 23,
+        "simulation/starter-kit/runs/20261010-185707-85c9.jsonl": 28,
+        "simulation/starter-kit/runs/20261010-185854-c942.jsonl": 21,
+        "simulation/starter-kit/runs/20261010-185926-005c.jsonl": 24,
+        "simulation/starter-kit/runs/20261010-185926-09f8.jsonl": 29,
+        "simulation/starter-kit/runs/20261010-185926-72b5.jsonl": 46,
+        "simulation/starter-kit/runs/20261010-190006-5c5a.jsonl": 26,
+        "simulation/starter-kit/runs/20261010-190006-b7be.jsonl": 24,
+        "simulation/starter-kit/runs/20261010-190006-f38c.jsonl": 26,
+        "simulation/starter-kit/runs/20261010-190015-0f0d.jsonl": 54,
+        "simulation/starter-kit/runs/20261010-190029-15f2.jsonl": 23,
+        "simulation/starter-kit/runs/20261010-190121-1805.jsonl": 28,
+        "simulation/starter-kit/runs/20261010-190137-819f.jsonl": 64,
+        "simulation/starter-kit/runs/20261010-190242-9886.jsonl": 25,
+        "simulation/starter-kit/runs/20261010-190316-f94f.jsonl": 22,
+        "simulation/starter-kit/runs/20261010-190339-fa96.jsonl": 48,
+        "simulation/starter-kit/runs/20261010-190446-7ed4.jsonl": 24,
+        "simulation/starter-kit/runs/20261010-190453-26fa.jsonl": 23,
+        "simulation/starter-kit/runs/20261010-190546-5464.jsonl": 27,
+        "simulation/starter-kit/runs/20261010-190657-ec6a.jsonl": 20,
+        "simulation/starter-kit/runs/20261010-190713-a28e.jsonl": 32,
+        "simulation/starter-kit/runs/20261010-190844-94c5.jsonl": 33
+      },
+      "user_removed_per_file": {
+        "docs/design.md": 4,
+        "simulation/README.md": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+please do this: Running it after a pull: I cloned the repo fresh and ran it to confirm. The 3 tests passed and the server started. The supplier dataset is in the repo, so you only add your keys.
+
+Install uv. It fetches Python 3.12 itself.
+In the cloned repo, run these three commands:
+cd simulation/starter-kit
+cp .env.example .env
+uv run --extra ui arena-haggle
+Open .env and set LLM_MODEL and LLM_API_KEY for the agent. For Online mode, also set ARENA_API_KEY (your team key).
+
+Offline mode needs only the model keys. .env stays on your machine and never gets committed, so you re-enter the keys on each new machine. This is also in simulation/README.md. The page opens at http://127.0.0.1:8100.
