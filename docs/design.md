@@ -44,13 +44,15 @@ no manual sending.
 - **Claims are computed, not written.** `context.claims` turns facts.json into sentences the arena checks; the
   model places them with `[[c3]]`, code fits them into the sentence. An ID the arena counts once per case (all but
   `quote:`/`offer:`) is spent for every thread once cited. Unknown IDs in the text are stripped.
-- **Failure never closes on the opening quote**: a model failure, a slow decision (> 40 s) or an internal error
-  sends the first menu package with a plain e-mail.
+- **Empty menus are not optimality evidence**: a model failure, a slow decision (> 40 s), an internal error,
+  or an infeasible target menu uses a guarded counter. Without a menu, it tries the standing structure at a
+  2% lower price, only if that lowers estimated total cost and satisfies must-haves.
 - **RFQs**: the arena answers one call per session at a time, so parallel threads queued past their 60 s (P05
   timed out twice). Every call of a session goes through one gate; after round 1 only the two cheapest bidders
   keep negotiating; a rival's lower standing offer is cited to the others; the target is the cheapest any bidder
   allows; when the cheapest bidder agrees, the others get two last rounds against its price; a cheapest bidder that
-  only sent a final offer is taken at once (no keep-alive messages).
+  only sent a final offer is taken at once (no keep-alive messages). A non-firm bidder cannot close the auction
+  while another bidder remains active; its local exhaustion leaves the other threads running (#4).
 - **Live Final** (`final.py`, `arena-haggle-final`): polls only the final case list, opens each case of a running
   wave once, plays a wave's cases in parallel, and 75 s before the wave's cap (or the slowest round plus 15 s)
   closes each case on its cheapest standing sheet. A crashed run is resumed from the arena. Runs are recorded

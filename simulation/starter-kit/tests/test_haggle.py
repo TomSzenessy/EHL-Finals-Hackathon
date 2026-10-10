@@ -305,3 +305,34 @@ def test_a_supplier_that_holds_its_price_is_offered_its_price_on_better_terms(pk
     assert kind == "send" and meta["mode"] == "terms"
     sheet = message["term_sheets"][0]["terms"]
     assert sheet["unit_price"] == 368.0 and sheet["payment_days"] == 90  # their price, our longest payment term
+
+
+def test_infeasible_target_menu_does_not_accept_opening(pkg, monkeypatch):
+    neg, events = _negotiator(pkg), _thread()
+    monkeypatch.setattr(neg, "offer_menu", lambda *args: [])
+    kind, message, meta = neg.step(events)
+    assert kind == "send"
+    assert message["term_sheets"][0]["terms"]["unit_price"] < 370.96
+    assert meta["fallback"]
+
+
+def test_open_rfq_leader_does_not_close_while_rival_is_active(tmp_path):
+    import threading
+
+    from arena_kit.haggle.run import Run
+
+    run = Run("online", "synthetic", tmp_path, None, None, ScriptedLLM())
+    run.result = None
+    run.close_lock, run.gate = threading.Lock(), threading.Lock()
+    run.closing = threading.Event()
+    run.active, run.dormant, run.last_call = {"a", "b"}, set(), {}
+    run._candidates = lambda *args: [(100, "a", "offer:a")]
+    closed = []
+    run._close = lambda *args: closed.append(True)
+    threads = {s: [{"from": s, "status": "counter"}] for s in ("a", "b")}
+    run._settled(None, {"suppliers": ["a", "b"]}, threads, "a")
+    assert not closed
+    assert not run.closing.is_set()
+    threads["a"][-1]["status"] = "final_offer"
+    run._settled(None, {"suppliers": ["a", "b"]}, threads, "a")
+    assert closed  # a firm offer still closes before it can expire

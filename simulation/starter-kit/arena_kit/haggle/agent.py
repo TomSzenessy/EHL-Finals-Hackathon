@@ -510,7 +510,9 @@ class Negotiator:
         self.goal_now = goal
         items = self.offer_menu(events, std, goal, kind)
         if not items:
-            return "settle", None, {"rationale": "No package on the menu is cheaper than their sheet.", "attempts": 0}
+            # An infeasible target (often another bidder's cost) is not evidence that
+            # this supplier's opening offer is the best it can do.
+            return self.fallback(events, std, {"attempts": 0}, "Target menu is infeasible; use a guarded counter.")
         self.messages.append({"role": "user", "content": self.state(events, rivals, free, std, items, kind)})
         meta = {"attempts": 0, "fallback": None, "goal_c": None if goal is None else round(goal, 2), "mode": kind}
         why = None

@@ -52,6 +52,10 @@ key, no quota; it only teaches the API, not the real suppliers).
    only the two cheapest bidders keep negotiating after round 1, and once the cheapest bidder agrees the other
    gets two last rounds against its price.
 
+An infeasible target menu triggers a guarded counter rather than acceptance of an opening quote. In an RFQ,
+a bidder with an open counter cannot terminate other active bidders merely because its own strategy stops.
+Regression tests cover both paths (issue #4).
+
 ## Live Final
 
 ```bash

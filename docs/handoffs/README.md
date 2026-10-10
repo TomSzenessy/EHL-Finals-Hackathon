@@ -24,3 +24,5 @@ work is complete.
 A good handoff lets the next actor take one useful action without the original
 conversation. A bad handoff restates the repository, assumes shared context, or
 claims verification that was not run.
+
+- [2026-10-10 Haggle strategy checkpoint](./2026-10-10-1825-haggle-strategy.md): RFQ fix, ten-case evidence, and the strict package-budget experiment to resume.

@@ -307,6 +307,8 @@ class Run:
             if not cands or cands[0][1] != sup:
                 return
             others = [s for s in self.active - self.dormant - {sup} if s in live_threads(threads)]
+            if latest(threads[sup]).get("status") not in ("agreed", "final_offer") and others:
+                return  # local exhaustion is not a reason to terminate the other bidders
             if latest(threads[sup]).get("status") == "agreed" and others and not self.last_call:
                 self.last_call = {s: LAST_CALL for s in others}
                 why = f"Cheapest bidder agreed: {LAST_CALL} more rounds for the others against its price."
