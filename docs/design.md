@@ -1,7 +1,7 @@
 # Haggle design
 
 <!-- index: design | Haggle agent and page: decisions and trust boundaries | Building or reviewing the simulation agent or its page. -->
-<!-- covers: simulation/starter-kit/arena_kit/haggle/** -->
+<!-- covers: simulation/starter-kit/arena_kit/haggle/** simulation/starter-kit/prompts/** -->
 
 One job: get the lowest total cost C from a supplier by haggling over as many rounds as the case allows,
 with verified claims and a friendly tone, and make every step inspectable. No chat with the agent, no board,
@@ -9,9 +9,15 @@ no manual sending.
 
 ## The agent (`agent.py`, `economics.py`, `context.py`)
 
-- **System prompt** (`agent.SYSTEM`, overridable with a file, see Settings): the playbook (anchoring, lever
-  probing, calibrated questions, loss framing, shrinking conditional concessions, persistence), tone, what never
-  to reveal, the JSON answer. Every run records the prompt hash and the raw request carries the full text.
+- **System prompt** (`agent.SYSTEM`, overridden by `prompts/system.md`, see Settings): the playbook (anchoring,
+  lever probing, calibrated questions, loss framing, shrinking conditional concessions, persistence), tone,
+  what never to reveal, and the JSON answer. The shared prompt keeps strong, priced opening packages while
+  requiring relevant evidence, complete negotiable fields, and conditional moves toward agreement. The cost
+  model already includes the supplier-health trade-off; a negative estimated margin alone does not justify
+  marking up its best package. TARGET is an estimate rather than proof of reachability. Package prices and
+  terms stay in binding sheets, avoiding prose that describes a filtered offer. The raw model request carries
+  the full prompt; the evaluation runs additionally record its hash. Standard run metadata does not yet do
+  so. Scores, limitations and rollback are documented in [the evaluation](../simulation/prompt-evaluation.md).
 - **Supplier context** (`context.injection`): the case, our private rates and alternative, everything the data
   package holds on the supplier, a PRICE ANALYSIS (ask vs index-implied cost, past settlements, late payments,
   contract notice, signals from notes and news such as cash strain or free capacity), injected once.

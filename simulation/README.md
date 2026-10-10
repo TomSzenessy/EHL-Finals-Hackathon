@@ -73,10 +73,25 @@ syncs them. Keys and headers are never recorded. Design and trust boundaries: `d
 Set them on the Settings tab (or in `.env`): any OpenAI-compatible endpoint (`LLM_BASE_URL`, `LLM_ENDPOINT`,
 `LLM_MODEL`, `LLM_API_KEY`) or `LLM_PROVIDER=anthropic`. The page stores them in `haggle_settings.json`
 (git-ignored; the API key is write-only). The system prompt is the file `starter-kit/prompts/system.md`
-(tracked in git; without it the built-in prompt in `agent.py` is used). Every run records the prompt hash.
+(tracked in git; without it the built-in prompt in `agent.py` is used). The raw model request in each run records the effective prompt text; the evaluation runs also include its hash in their metadata.
 The model receives the supplier's evidence and your private rates; a local model keeps that on your machine.
 `LLM_TIMEOUT` (default 45 s) bounds one call; a slower answer falls back to a plain counter so the arena's
 60-second rule is kept.
+
+The shared prompt in `starter-kit/prompts/system.md` applies to every case. New runs read it automatically;
+an already running negotiation keeps its original prompt. It prioritises complete valid packages, total cost
+over headline price, relevant checked evidence, conditional concessions and stopping at a final offer.
+Proposed package prices and terms belong in the binding sheets rather than duplicated e-mail prose. The
+local TARGET is an uncertain cost-search estimate, not the Arena's hidden best attainable deal.
+
+Use **Settings → Reset to built-in** to roll back locally, or restore the prompt file with git to share a
+previous version. The built-in strategy remains available in `arena_kit/haggle/agent.py`. Prompt instructions
+cannot override the runner's validation, acceptance guards or thread handling. In particular, an optimistic
+target can still force additional rounds, and validation may remove an uneconomic secondary package.
+
+Prompt evaluation and its limits are recorded in [the evaluation notes](prompt-evaluation.md). Hosted
+supplier replies vary: one run per case establishes observed results, not a statistically proven improvement
+or a guarantee of the maximum possible score.
 
 ## Tests
 
