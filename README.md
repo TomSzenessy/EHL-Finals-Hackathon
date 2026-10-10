@@ -1,14 +1,31 @@
 # AI_TEMPLATE
 
-## Haggling agent
+## Tacto Negotiation Arena: our buyer agent
 
-An agent that reads a supplier's file and haggles the price down over every round a case allows, plus a
-page to inspect each request, response and supplier record, lives in [simulation/](simulation/README.md):
+A buyer agent for Hollerau Pumpenwerke that negotiates by e-mail with the arena's supplier bots. **Code decides every
+number** (total cost C with the arena's own cost function, equal-cost packages, the price path, when to close), **the
+model reads the supplier and writes** (which packages, which checkable facts, the e-mail). Everything lives in
+[`simulation/`](simulation/README.md):
 
 ```bash
 cd simulation/starter-kit
-uv run --extra ui arena-haggle
+cp .env.example .env            # fill in the names below; never commit .env
+uv sync --extra ui
+uv run arena data --out ../data/sunday   # Sunday release (see docs/live-final.md for where it goes)
+uv run --extra ui arena-haggle-final     # the Live Final: start before 12:00, leave it running (5 waves)
+uv run --extra ui arena-haggle           # practice: a local page to run and inspect negotiations
+uv run pytest -q                          # tests
 ```
+
+Environment variables (names only): `ARENA_URL`, `ARENA_API_KEY`, `ARENA_DATA`, `ARENA_RELEASE` (optional),
+`LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_ENDPOINT`, `LLM_MODEL`, `LLM_API_KEY` (or `ANTHROPIC_API_KEY`), `LLM_TIMEOUT`.
+
+- Run and submit the Live Final: [`docs/live-final.md`](docs/live-final.md)
+- How the agent decides: [`docs/design.md`](docs/design.md)
+- What the suppliers taught us, and the rule in code for each lesson: [`docs/haggle-evidence.md`](docs/haggle-evidence.md)
+- Every practice negotiation, recorded: `simulation/starter-kit/runs/` (the page shows them)
+
+The rest of this README describes the AI-agent project template this repository was built on.
 
 <!-- repoctl:description -->
 Self-healing starting point for AI-agent-built projects of any size: docs bound to code, generated host adapters, delegation roles, and deterministic gates for any agent or model.

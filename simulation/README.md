@@ -75,6 +75,21 @@ standing sheet 75 s before the wave's 8-minute cap. Each case is recorded under 
 If it crashes, start it again: a case already opened is picked up from the arena (the session the 409 names,
 or our own open session of that case). All cases share the key's per-second call limit.
 
+Sunday runbook, checklist and the ehl.gg submission: [`docs/live-final.md`](../docs/live-final.md).
+
+## Probes and rehearsals
+
+`starter-kit/probes/` holds the scripts behind the evidence in [`docs/haggle-evidence.md`](../docs/haggle-evidence.md)
+(experiment scripts, outside the agent and its lint):
+
+- `probe.py probes/policies/<policy>.py`: one hosted practice session (ask first: quota) played by a hand-written
+  policy that tests one idea; recorded under `runs/` with model `scripted`. `policies/` keeps every policy we ran.
+- `batch.py [case ids]`: hosted practice cases through the real agent, in parallel (one session each).
+- `fetch_cases.py cases.json`: every practice case file, hosted or not (a read, no session).
+- `offline19.py cases.json out [--llm broken|slow]`: every case file through the agent against arena-sim (no
+  session): no crash, valid sheets, must-haves kept, a deal or the alternative, with the model up or down.
+- `final_rehearsal.py cases.json out [--llm ...] [--cap s]`: the Live Final runner over 5 waves of 10 such cases.
+
 ## Supplier files
 
 Every supplier on a case card on the Negotiate page is a button (for example "Selvbrunn Drive Systems GmbH ›").

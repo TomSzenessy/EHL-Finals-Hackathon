@@ -2,8 +2,36 @@
 
 <!-- index: design | What the hosted suppliers did and the rule in code for each lesson | Changing a negotiation rule, or checking why one exists. -->
 
-Practice replays, back office and controlled probes on the hosted arena, 2026-10-10. Every row names the
-observation and the code that acts on it; the design itself is in [`design.md`](./design.md).
+Practice replays, back office and controlled probes on the hosted arena, 2026-10-10/11 (about 300 sessions; the
+probe scripts are in `simulation/starter-kit/probes/`, their sessions under `runs/` with model `scripted`). Every
+row names the observation and the code that acts on it; the design itself is in [`design.md`](./design.md).
+
+## The supplier model in one page
+
+- **Code sets the limits, a role decides the move.** The back office shows each reply as "My call: counter / hold /
+  accept / final_offer" by the role in charge. Its hard floor sits below where it stops (P11: the arena's C_best
+  implies 43.90, the rep holds 45.50); a role's word ("I checked with the boss") is not evidence: the only approval
+  flow ever logged fired on a much lower rival quote in a tender ("I give half the step now and check the rest").
+- **Concessions come in a supplier's own step**: fixed (Kalwisz 0.50, Werdenfels 0.10 = its "2% needs the pricing
+  committee") or shrinking (Donautal 0.10, 0.06, 0.04), then a hold, then `final_offer` (rounds 3-7).
+- **Facts are counted by kind, once.** An accepted kind (index fall on its own cost drivers, our forecast, should-cost,
+  complaints in a quality case, late notice against the contract, a rival's live offer) buys a step or lowers the
+  level; the size of the fact does not matter (P11: -17.1% and -3.7% gave the same path); a second fact of a kind is
+  `duplicate`; claims set how fast a supplier reaches its floor, not the floor (P11: every combination ends at 45.50).
+  Owner-run firms answer "we did not know that" and move more (P01, the P05 bidders); informed ones "take it into
+  account".
+- **What costs trust**: an `irrelevant` fact (a rival's orders, an exchange rate: only its listed cost drivers count),
+  a `contradicted` one (a figure the arena cannot match, an attached file that does not match its data), pressure or
+  an ultimatum (earlier, higher final), a high first sheet (it concedes less), the same sheet sent twice (it walks).
+- **What is closed**: a fixed term in a sheet (422, "an offer carries exactly the negotiable fields"); promises of
+  fixed terms in the text (it asks for a binding commitment); text that differs from the sheet ("just fix the term
+  sheet"); claims about what it said; escalation to the boss; our frame contract's price clause.
+- **What a supplier wants is often what the case fixes** (Kalwisz: faster payment, every supplier: "which volume can
+  you commit to?"). When the term is negotiable the menu trades it; when it is fixed there is no lever.
+- **What works**: a warm e-mail, every accepted kind in round 1, a low reasoned anchor, small steps, accept `agreed` and
+  `final_offer` at once; price each package by our total cost (money is worth about a point less to a supplier than
+  to us: P02 0.659 -> 0.735); in a tender, a rival's live offer to every bidder each round.
+- Leader's records we could not reach with any of the above: P11 0.885, P08 0.916, P02 0.847.
 
 | Observed | Rule in code |
 |---|---|
