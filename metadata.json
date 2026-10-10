@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4KGZESY46SR10JJPR4572YG",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/design.md",
+    "simulation/README.md",
+    "simulation/starter-kit/arena_kit/haggle/agent.py",
+    "simulation/starter-kit/arena_kit/haggle/run.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 116531,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 3299200,
+    "output_tokens": 12359,
+    "api_call_count": 42,
+    "subagent_tokens_complete": false
+  }
+}
