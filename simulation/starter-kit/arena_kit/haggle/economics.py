@@ -21,6 +21,13 @@ ASK_MARGIN = 0.99  # a supplier does not ask for less than about its cost: full 
 # cost of 0.98 x the should-cost estimate every time (129.95 vs 132.64, 130.04 vs 132.64, 367.6 vs 374.95,
 # 367.8 vs 374.95), so the estimate runs about 2% high.
 SHOULD_COST_BIAS = 0.98
+# What money is worth to a supplier until its own sheets show it (`Negotiator.learn_money`): one point under our
+# rate (Nordmark priced payment days at about 7% a year against our 8%). At our own rate every payment term looks
+# equal to us in a supplier-health case and the menu took 45 days; at the supplier's lower rate the longest term
+# is cheaper for us (P02: 361.50 at 90 days with the clause, agreed in round 1, 0.735 against 0.659 at 45 days).
+# A supplier under financial strain keeps our rate: cash is dearer to it.
+SUPPLIER_RATE_DISCOUNT = 0.01
+STRAIN_TOPICS = {"restructuring", "credit_downgrade", "credit_watch", "short_time_work"}
 
 
 def full_standard(dos, pdf_standard):
@@ -39,7 +46,10 @@ def full_standard(dos, pdf_standard):
 def estimate(case, dos, std, ask=None):
     """Our model of the supplier for `supplier_value`; `full_cost` only if the data has a should-cost,
     capped just under the supplier's own ask (the should-cost is only good to about +/-5%)."""
-    est = {"standard": std, "interest_rate": case["buyer"]["interest_rate"]}
+    rate = case["buyer"]["interest_rate"]
+    if not any(n.get("topic") in STRAIN_TOPICS for n in dos.get("news", [])):
+        rate -= SUPPLIER_RATE_DISCOUNT
+    est = {"standard": std, "interest_rate": rate}
     part = (case.get("parts") or [None])[0]
     rows = [r for r in dos.get("should_cost", []) if r["part_id"] == part] or dos.get("should_cost", [])
     if rows and rows[0].get("unit_cost"):

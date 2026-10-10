@@ -149,9 +149,17 @@ def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE):
             worth = p
         own = all(sheet.get(k) == v for k, v in standing_terms.items() if k != "unit_price")
         item = {"terms": sheet, "c": c, "worth": round(worth, 4), "own": own, "liking": _liking(sheet, standing_terms)}
+        item["over"] = secure and c > c_goal  # a clause package at its cheapest price, still above the goal
         g = (round(p, 2), round(c))
         if g not in groups or (item["own"], item["liking"]) > (groups[g]["own"], groups[g]["liking"]):
             groups[g] = item
+    # Clause packages that cannot reach the goal sit at their cheapest price, above it: a supplier that values the
+    # clause agrees to one at once (P02, round 1). Keep only the cheapest of them, so the one it picks is the one that
+    # costs us least (P02: 90 days at 361.50, 0.735, not 45 days at 358.20, 0.659).
+    over = [m for m in groups.values() if m["over"]]
+    if over:
+        keep = min(over, key=lambda m: m["c"])
+        groups = {g: m for g, m in groups.items() if not m["over"] or m is keep}
     ranked = sorted(groups.values(), key=lambda m: (not m["own"], -m["worth"], -m["liking"]))
     for m in ranked:
         m["tags"] = tags(m["terms"], standing_terms, case)

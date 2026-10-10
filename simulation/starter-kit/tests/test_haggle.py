@@ -396,3 +396,31 @@ def test_the_menu_never_offers_a_structure_that_is_a_trap_at_their_price(pkg):
     est = eco.estimate(case, dos, std, ask=370.96)
     items = st.menu(case, 1.0, std, est, 370.96, [{"unit_price": 370.96, "payment_days": 30, "index_clause": None}])
     assert items and all(m["terms"]["contract_months"] == 24 for m in items)
+
+
+def test_the_clause_package_is_the_cheapest_one_for_us_in_a_health_charge_case(pkg):
+    """A clause package that cannot reach the goal sits at its cheapest price and the supplier agrees to it at once
+    (P02, round 1): only the cheapest of them stays on the menu, at the longest payment term, because a supplier
+    values money below our rate (P02: 361.50 at 90 days, 0.735, against 358.20 at 45 days, 0.659)."""
+    from arena_kit.haggle import economics as eco
+    from arena_kit.haggle import strategy as st
+
+    case = {**P02, "term_options": {**P02["term_options"], "payment_days": [14, 30, 45, 60, 90]}}
+    dos = dossier(pkg, "sup:70510", case)
+    std = eco.full_standard(dos, PDF_STANDARD)
+    est = eco.estimate(case, dos, std, ask=370.96)
+    assert est["interest_rate"] < case["buyer"]["interest_rate"]
+    plan = eco.plan(case, std, est, 370.96)
+    items = st.menu(case, plan["target"]["c"], std, est, 370.96, [{"unit_price": 370.96, "payment_days": 30,
+                                                                      "index_clause": None}])  # fmt: skip
+    clause = [m for m in items if m["terms"]["index_clause"]]
+    assert len(clause) == 1 and clause[0]["terms"]["payment_days"] == 90
+    assert 359 < clause[0]["terms"]["unit_price"] < 364
+
+
+def test_a_supplier_under_strain_keeps_our_rate_for_money(pkg):
+    from arena_kit.haggle import economics as eco
+
+    dos = {**dossier(pkg, "sup:70510", P02), "news": [{"topic": "restructuring"}]}
+    est = eco.estimate(P02, dos, eco.full_standard(dos, PDF_STANDARD), ask=370.96)
+    assert est["interest_rate"] == P02["buyer"]["interest_rate"]

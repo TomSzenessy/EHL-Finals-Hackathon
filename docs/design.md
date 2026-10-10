@@ -25,6 +25,9 @@ the rule in code for each lesson: [`haggle-evidence.md`](./haggle-evidence.md).
 - **The score is C, not the unit price.** `economics.py` prices every sheet with the arena's own cost function
   including our estimate of the supplier-health charge (stabilise and secure_supply cases), from the should-cost
   row times 0.98 (calibrated on the arena's exact breakdowns of P01 and P02), capped at 99% of its own ask.
+  Money is worth one point less to a supplier than to us until its own sheets show its rate (a supplier under
+  financial strain keeps ours), so in a supplier-health case the longest payment term is the cheapest for us; of the
+  clause packages that cannot reach the goal only the cheapest stays on the menu (P02: agreed in round 1 either way).
 - **Claims are computed, not written.** `context.claims` turns facts.json into sentences the arena checks; the
   model places them with `[[c3]]`, code fits them into the sentence. An ID the arena counts once per case (all but
   `quote:`/`offer:`) is spent for every thread once cited. Unknown IDs in the text are stripped.
