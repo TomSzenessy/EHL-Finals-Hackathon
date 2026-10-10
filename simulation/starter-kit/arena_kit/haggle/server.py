@@ -18,7 +18,7 @@ from .agent import SYSTEM
 from .arena import MODES, Arenas
 from .context import SUPPLIER_ID, dossier, names
 from .llm import LLM, LLMError
-from .run import Run
+from .run import RESULT_KEYS, Run
 from .settings import Settings, sha
 
 STATIC = Path(__file__).parent / "static"
@@ -27,6 +27,50 @@ RUN_ID = re.compile(r"^[\w-]{1,60}$")
 
 def runs_folder():
     return Path(os.environ.get("ARENA_RUNS", "runs"))
+
+
+UNFINISHED = ("starting", "running")
+
+
+CACHE = Path(".haggle_cache/reconciled.json")  # git-ignored: this machine's view, never written into runs/
+
+
+def _cache():
+    try:
+        return json.loads(CACHE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def reconcile(meta, arenas):
+    """A run file still says "running" but no process plays it (the server stopped mid-way). Ask the arena how the
+    session ended. The answer goes to a local, git-ignored cache, never into the run file: run files travel through
+    git and are only written by the run that created them, so pulls never conflict."""
+    if meta["run_id"] in (cached := _cache()):
+        return cached[meta["run_id"]]
+    if not meta.get("session_id") or meta.get("mode") not in ("online", "final"):
+        return None
+    client = arenas.client(meta["mode"])
+    try:
+        state = client.session(meta["session_id"])
+    except ArenaError:
+        return None
+    finally:
+        client.http.close()
+    if state.get("status") != "ended":
+        return None
+    result = state.get("result") or {"deal": False, "end_reason": state.get("end_reason")}
+    fixed = {
+        **meta,
+        "status": "done",
+        "reconciled": "the run stopped mid-way; this is the arena's record of how the session ended",
+        "result": {k: result.get(k) for k in RESULT_KEYS if k in result} | {"end_reason": state.get("end_reason")},
+        "score": result.get("score"),
+        "deal": result.get("deal"),
+    }
+    CACHE.parent.mkdir(parents=True, exist_ok=True)
+    CACHE.write_text(json.dumps({**_cache(), meta["run_id"]: fixed}, default=str), encoding="utf-8")
+    return fixed
 
 
 def read_run(path):
@@ -72,6 +116,7 @@ def create_app(
     @app.get("/api/config")
     def config():
         return {
+            "prompt_sha": sha(settings.prompt()[0]),  # the prompt a new run would use
             "model": current().model,
             "llm_configured": current().configured,
             "data": pkg is not None,
@@ -108,6 +153,8 @@ def create_app(
         threading.Thread(target=run.execute, daemon=True).start()
         return run.meta
 
+    checked = set()  # stale runs already asked about, once per server start
+
     def metas():
         out = {}
         for path in sorted(where().glob("*.jsonl")):
@@ -116,6 +163,17 @@ def create_app(
             except (ValueError, OSError):
                 continue
             if meta:
+                if meta.get("status") in UNFINISHED and meta["run_id"] not in live:
+                    if meta["run_id"] in (cached := _cache()):
+                        meta = cached[meta["run_id"]]
+                    elif meta["run_id"] not in checked:  # ask the arena once per server start
+                        checked.add(meta["run_id"])
+                        try:
+                            meta = reconcile(meta, arenas) or meta
+                        except Exception:  # noqa: BLE001 - no key, no network: show it as stopped
+                            pass
+                    if meta.get("status") in UNFINISHED:
+                        meta = {**meta, "status": "stopped"}
                 out[meta["run_id"]] = meta
         for run in live.values():
             out[run.id] = run.meta
@@ -140,6 +198,8 @@ def create_app(
         if not path.exists():
             raise ArenaError(404, "no such run")
         meta, events = read_run(path)
+        if meta.get("status") in UNFINISHED:  # no process plays it any more (see `metas`)
+            meta = _cache().get(rid) or {**meta, "status": "stopped"}
         return {"meta": meta, "total": len(events), "events": events[after:]}
 
     @app.get("/api/settings")

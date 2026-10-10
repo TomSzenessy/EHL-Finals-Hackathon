@@ -84,6 +84,8 @@ class Settings:
             text = self.prompt_path().read_text(encoding="utf-8").strip()
         except OSError:
             text = ""
+        if text and '"offers"' not in text:  # written for the old answer format (the model set its own prices)
+            return SYSTEM, f'built-in ({self.prompt_path()} lacks the "offers" answer format)'
         return (text, str(self.prompt_path())) if text else (SYSTEM, "built-in")
 
     def save_prompt(self, text):

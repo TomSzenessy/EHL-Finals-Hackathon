@@ -21,23 +21,22 @@ pkg = pytest.fixture(scope="module")(lambda: DataPackage(DATA))
 
 
 class ScriptedLLM:
-    """Stands in for the model: always counters 3% under the supplier's standing price."""
+    """Stands in for the model: offers the first two packages of the code's menu, or settles when asked to."""
 
     model, timeout, configured = "scripted", 5, True
 
     def __init__(self, settle=False):
-        self.calls = []
+        self.calls, self.settle = [], settle
 
     def chat(self, system, messages, timeout=None, record=lambda r: None):
-        text = next(m["content"] for m in reversed(messages) if "STANDING sheet" in m["content"])
-        sheet = json.loads(re.search(r"STANDING sheet \S+: (\{.*?\}) ->", text).group(1))
-        sheet["unit_price"] = round(sheet["unit_price"] * 0.97, 2)
+        text = messages[-1]["content"]
+        keys = re.findall(r"^- ([A-J]): EUR", text, re.M)
         reply = json.dumps(
             {
-                "action": "settle" if re.search(r"(?<!\d)0 messages left", text) else "send",
+                "action": "settle" if self.settle else "send",
                 "subject": "Our counter",
                 "body": "Thank you for the quote. [[c1]] Could you send a cost breakdown?",
-                "term_sheets": [sheet],
+                "offers": keys[:2],
                 "rationale": "scripted",
             }
         )
@@ -141,37 +140,78 @@ def _thread(status="open", price=370.96):
              "attachments": [{"name": "quote-offer.pdf", "text": pdf}], "signals": {"reply_delay_days": 1}}]  # fmt: skip
 
 
-def test_a_counter_far_below_their_price_is_refused_as_an_insult(pkg):
-    from arena_kit.haggle.agent import Feedback
-
-    neg, events = _negotiator(pkg), _thread()
-    std = __import__("arena_kit.haggle.economics", fromlist=["x"]).full_standard(neg.dossier, {})
-    neg.prepare(events, std)
-    ask = {
-        "action": "send",
-        "body": "Hello",
-        "term_sheets": [{"unit_price": 216, "payment_days": 90, "index_clause": None}],
-    }
-    with pytest.raises(Feedback, match="insult"):
-        neg.build(ask, events, {}, {}, std)
-    fair = {**ask, "term_sheets": [{"unit_price": 345, "payment_days": 30, "index_clause": None}]}
-    assert neg.build(fair, events, {}, {}, std)[0] == "send"
-
-
-def test_it_does_not_settle_early_but_takes_a_final_offer_without_asking(pkg):
+def _std(neg):
     from arena_kit.haggle import economics as eco
-    from arena_kit.haggle.agent import Feedback
 
-    neg = _negotiator(pkg)
-    std = eco.full_standard(neg.dossier, {})
-    events = _thread("open")
-    neg.prepare(events, std)
-    with pytest.raises(Feedback, match="cannot settle"):
-        neg.build({"action": "settle"}, events, {}, {}, std)  # their sheet is far above our best reachable C
-    # "final offer, please decide": the model is not even asked; any further message could end the deal
+    return eco.full_standard(neg.dossier, {})
+
+
+def _reply(events, status, price, terms=None):
+    """The thread after we sent the scripted counter and the supplier answered."""
+    sheet = {"unit_price": price, "payment_days": 30, "index_clause": None, **(terms or {})}
+    return [*events, {"from": "buyer", "body": "counter"},
+            {"from": "sales@70510", "status": status, "subject": "Re: P02", "body": "Our offer.",
+             "term_sheets": [{"term_sheet_id": f"offer:70510-{len(events)}", "terms": sheet}],
+             "attachments": [], "signals": {}}]  # fmt: skip
+
+
+def test_code_prices_every_sheet_and_the_first_one_sits_at_the_target(pkg):
+    neg, events = _negotiator(pkg), _thread()
+    kind, message, meta = neg.step(events)
+    assert kind == "send" and 1 <= len(message["term_sheets"]) <= 3
+    costs = meta["sheet_costs"]
+    target = neg.target_c()
+    assert all(abs(c - costs[0]) / costs[0] < 0.002 for c in costs)  # equal-cost packages
+    assert target <= costs[0] <= target * 1.002  # a stabilise case opens at the C-optimal price, not below it
+    assert all(t["terms"]["unit_price"] < 370.96 for t in message["term_sheets"])
+    assert "[[" not in message["body"] and "Because Our" not in message["body"]
+
+
+def test_our_steps_shrink_and_never_pass_their_sheet(pkg):
+    neg, events = _negotiator(pkg), _thread()
+    paid = []
+    for price in (369.5, 368.9, 368.5, 368.2):
+        kind, message, meta = neg.step(events)
+        assert kind == "send"
+        neg.sent()
+        paid.append(max(meta["sheet_costs"]))
+        events = _reply(events, "open", price)
+    steps = [b - a for a, b in zip(paid, paid[1:], strict=False)]
+    assert all(s > 0 for s in steps) and steps == sorted(steps, reverse=True)
+    assert paid[-1] < neg.their_c(events, _std(neg))
+
+
+def test_agreed_is_taken_at_once_without_asking_the_model(pkg):
+    neg, events = _negotiator(pkg), _thread()
+    neg.step(events)
+    neg.sent()
     neg.llm.calls.clear()
-    kind, message, meta = neg.step(_thread("final_offer", price=365.0))
+    kind, message, _ = neg.step(_reply(events, "agreed", 361.0))
     assert kind == "settle" and message is None and not neg.llm.calls
+
+
+def test_a_final_offer_is_taken_without_another_word(pkg, monkeypatch):
+    # Pushing after "final offer" ended in a walk-away 3 times of 3 on the hosted arena: no deal scores 0.
+    neg, events = _negotiator(pkg), _thread()
+    neg.step(events)
+    neg.sent()
+    neg.llm.calls.clear()
+    kind, message, _ = neg.step(_reply(events, "final_offer", 370.5))
+    assert kind == "settle" and message is None and not neg.llm.calls
+    # the probe stays available as an explicit experiment
+    monkeypatch.setenv("HAGGLE_PROBE_FINAL", "1")
+    neg2, events2 = _negotiator(pkg), _thread()
+    neg2.step(events2)
+    neg2.sent()
+    kind, message, meta = neg2.step(_reply(events2, "final_offer", 370.5))
+    assert kind == "send" and meta["mode"] == "probe" and len(message["term_sheets"]) == 1
+
+
+def test_the_model_may_not_settle_while_the_supplier_still_moves(pkg):
+    neg = _negotiator(pkg, ScriptedLLM(settle=True))
+    kind, message, meta = neg.step(_thread())
+    assert kind == "send" and meta["fallback"]  # three refusals, then the plain counter from the menu
+    assert any("Do not settle" in f for f in meta["feedback"])
 
 
 def test_settings_change_the_model_and_the_prompt_file(pkg, tmp_path, monkeypatch):
@@ -186,11 +226,11 @@ def test_settings_change_the_model_and_the_prompt_file(pkg, tmp_path, monkeypatc
     first = client.get("/api/settings").json()
     assert first["prompt_is_default"] and not first["configured"]
     saved = client.put(
-        "/api/settings", json={"model": "m-1", "api_key": "secret-key", "prompt": "My prompt text"}
+        "/api/settings", json={"model": "m-1", "api_key": "secret-key", "prompt": 'My prompt text {"offers": []}'}
     ).json()
     assert saved["model"] == "m-1" and saved["has_key"] and saved["configured"]
     assert "secret-key" not in json.dumps(saved)  # the key is write-only
-    assert saved["prompt"] == "My prompt text" and (tmp_path / "prompts" / "system.md").exists()
+    assert saved["prompt"] == 'My prompt text {"offers": []}' and (tmp_path / "prompts" / "system.md").exists()
     assert client.get("/api/config").json()["model"] == "m-1"
     reset = client.put("/api/settings", json={"reset_prompt": True}).json()
     assert reset["prompt_is_default"]
@@ -204,3 +244,50 @@ def test_an_rfq_with_two_suppliers_runs_both_threads_and_closes_cleanly(pkg, tmp
     assert not [e for e in body["events"] if e["kind"] == "error"], [e for e in body["events"] if e["kind"] == "error"]
     suppliers = {e["supplier"] for e in body["events"] if e["kind"] == "decision" and e.get("round")}
     assert len(suppliers) == 2  # one agent per supplier thread, run in parallel
+
+
+def test_near_the_wave_cap_a_case_closes_on_the_standing_sheet(pkg, tmp_path):
+    from arena_kit.haggle.run import Run
+
+    run = Run("offline", "case:S01", tmp_path, Arenas(pkg.facts), pkg, ScriptedLLM(), deadline=lambda: time.time() + 30)
+    run.execute()
+    assert run.meta["status"] == "done" and run.meta["deal"]
+    actions = [e.get("action") for e in run.events if e["kind"] == "decision"]
+    assert actions[0] == "cap" and "accept" in actions  # no message sent: straight to the close
+
+
+def test_the_final_runner_plays_each_case_of_a_running_wave_once(pkg, tmp_path):
+    from arena_kit.haggle.final import play_waves
+
+    class WaveArenas(Arenas):
+        """The offline simulator, with a final case list: one wave of two cases, then closed."""
+
+        polls = 0
+
+        def client(self, mode):
+            c = super().client("offline")
+            if mode == "final":
+                practice = c.cases
+
+                def cases(set_="practice"):
+                    if set_ != "final":
+                        return practice(set_)
+                    WaveArenas.polls += 1
+                    open_ = WaveArenas.polls < 3
+                    return [{**x, "wave": 1, "open": open_, "seconds_left": 300 if open_ else 0}
+                            for x in practice("practice")[:2]]  # fmt: skip
+
+                c.cases = cases
+            return c
+
+    runs = play_waves(WaveArenas(pkg.facts), pkg, ScriptedLLM(), "system", "test", tmp_path, waves=1, poll=0.05)
+    assert sorted(r.meta["case_id"] for r in runs) == ["case:S01", "case:S02"]
+    assert all(r.meta["status"] == "done" and r.meta["mode"] == "final" for r in runs)
+
+
+def test_a_figure_without_a_check_behind_it_is_sent_back(pkg):
+    from arena_kit.haggle.agent import unverified_figures
+
+    allowed = "EUR 5.12, payment_days=30 | Copper rose 47.7 % in twelve months"
+    assert unverified_figures("We offer EUR 5.12. Copper rose 47.7 % for you.", allowed) == []
+    assert unverified_figures("Your on-time delivery was 83.0%, so EUR 4.99 is fair.", allowed) == ["83.0%", "EUR 4.99"]

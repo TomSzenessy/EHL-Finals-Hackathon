@@ -251,6 +251,23 @@ def analysis(pkg, case, dos, ask=None, texts=None):
     return out
 
 
+# How each kind of argument moved the hosted suppliers (practice replays, 2026-10-10): "we took it into account"
+# and a lower price for 12-month index falls on their own cost drivers, our volume forecast, the should-cost estimate,
+# a quality record in a quality case and a rival's price; "it holds, but it does not change our calculation" for
+# delivery records, price history and one-month index windows.
+STRENGTH = {
+    "index": "strong",
+    "forecast": "strong",
+    "should-cost": "strong",
+    "competing quote": "strong",
+    "rival offer": "strong",
+    "notice": "strong",
+    "quality": "medium",
+    "delivery": "weak",
+    "orders": "weak",
+}
+
+
 def claims(pkg, case, sup, dos, ask=None):
     """Candidate arguments, each {id, kind, refs, text, helps, note}. `text` is the sentence the arena
     checks: its figure is computed here from the same facts the arena uses."""
@@ -261,9 +278,15 @@ def claims(pkg, case, sup, dos, ask=None):
 
     def add(kind, refs, text, helps, note=""):
         if refs and all(r in facts for r in refs):
+            strength = STRENGTH.get(kind, "medium")
+            if kind == "index" and not re.search(r"changed -(?:[1-9]|\d{2,})", text):
+                # a rise or a flat window: "a single month of stability does not change our calculation". A fall of 1%
+                # or more on a cost driver, short window or not, moved P18 from 6.10 to 5.50 in one round.
+                strength = "weak"
             out.append(
-                {"id": f"c{len(out) + 1}", "kind": kind, "refs": refs, "text": text, "helps": helps, "note": note}
-            )
+                {"id": f"c{len(out) + 1}", "kind": kind, "refs": refs, "text": text, "helps": helps, "note": note,
+                 "strength": strength}
+            )  # fmt: skip
 
     # index moves behind the part's cost: the 12-month figure the supplier cites, and the window that
     # reads best for us (shorter windows often show a turn the 12-month figure hides)

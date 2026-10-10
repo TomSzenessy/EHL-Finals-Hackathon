@@ -41,14 +41,26 @@ key, no quota; it only teaches the API, not the real suppliers).
 ## What happens in a run
 
 1. The agent opens the case and reads the supplier's file from the data package.
-2. It gets a system prompt (the playbook) and the supplier context with a price analysis, then answers every
-   supplier e-mail with a counter: a friendly e-mail, up to three term sheets, and up to three checked claims.
-3. Code prices every term sheet with the arena's own cost function plus an estimate of the supplier-health
-   charge (so it optimises the score, not just the unit price), refuses counters that are not cheaper or that
-   insult the supplier, and settles only when the supplier has stopped moving or the rounds are used. A
-   supplier's "final offer" is accepted without another message: replying to it ended a deal in practice.
-4. The case closes on the cheapest standing term sheet that beats your alternative. In an RFQ, one agent
-   negotiates with each supplier in parallel and settled threads are kept alive until the others finish.
+2. Code prices the target (the cheapest total cost C the case allows, with the supplier-health charge where the
+   score has one) and, each round, what our sheets may cost: a low, reasoned first sheet, then a shrinking share
+   of the gap to the supplier's best sheet. Every allowed structure is priced to that same cost (the offer menu).
+3. The model picks one to three menu packages and the verified arguments (strongest first, a new one each round)
+   and writes a friendly e-mail. It never sets a price.
+4. `agreed` and `final_offer` are accepted at once: a supplier never goes below a sheet it agreed to, and every
+   push after a final offer ended in a walk-away. The case closes on the cheapest standing sheet that beats your
+   alternative. In an RFQ every call of the session is queued through one gate (the arena answers one at a time),
+   only the two cheapest bidders keep negotiating after round 1, and the case closes as soon as the cheapest
+   bidder settles.
+
+## Live Final
+
+```bash
+cd simulation/starter-kit
+uv run --extra ui arena-haggle-final   # start before wave 1, leave it running until the last wave closed
+```
+
+It polls only the final case list, plays each wave's cases in parallel and closes every case on its cheapest
+standing sheet 75 s before the wave's 8-minute cap. Each case is recorded under `runs/` and shows on the page.
 
 ## Supplier files
 
@@ -66,14 +78,19 @@ events) · **Formatted** (the same run as readable e-mails, term sheets, claim v
 best scores, practice leaderboard, all sessions, downloads) · **Settings** (model and system prompt file).
 
 Sessions are saved as `starter-kit/runs/<id>.jsonl` and tracked in git, so a normal `git push` and `git pull`
-syncs them. Keys and headers are never recorded. Design and trust boundaries: `docs/design.md`.
+syncs them. Each run writes only its own new file, so clones running experiments side by side never conflict;
+everything else local (settings, keys, `.haggle_cache/`) is git-ignored. The Team tab reads the arena API live.
+Each run records its system prompt and code version. Keys and headers are never recorded. Design and trust boundaries: `docs/design.md`.
 
 ## Model and system prompt
 
 Set them on the Settings tab (or in `.env`): any OpenAI-compatible endpoint (`LLM_BASE_URL`, `LLM_ENDPOINT`,
 `LLM_MODEL`, `LLM_API_KEY`) or `LLM_PROVIDER=anthropic`. The page stores them in `haggle_settings.json`
 (git-ignored; the API key is write-only). The system prompt is the file `starter-kit/prompts/system.md`
-(tracked in git; without it the built-in prompt in `agent.py` is used). Every run records the prompt hash.
+(tracked in git; without it the built-in prompt in `agent.py` is used; a file without the `"offers"` answer
+format falls back to the built-in prompt, since the model no longer sets prices). To experiment in one clone
+without touching the others, point the Settings "Prompt file" at an untracked path. Every run records the exact
+prompt it used, shown on the Formatted tab.
 The model receives the supplier's evidence and your private rates; a local model keeps that on your machine.
 `LLM_TIMEOUT` (default 45 s) bounds one call; a slower answer falls back to a plain counter so the arena's
 60-second rule is kept.

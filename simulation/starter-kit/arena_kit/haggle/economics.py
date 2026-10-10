@@ -10,8 +10,9 @@ import itertools
 
 from arena_kit.cost import RELATIONSHIP_GOALS, closing_terms, complete_offer, must_haves_ok, supplier_value, total_cost
 
-PRICE_STEPS = 25  # 1% steps from the supplier's price down to 75% of it: nobody moves further in one deal
-NO_ESTIMATE_FLOOR = 0.85  # without a cost estimate, never plan below this share of the supplier's price
+# Without a cost estimate, plan down to this share of the supplier's price: the best package a supplier accepted
+# sat at 84-87% of its opening price in the hosted cases without a supplier-health charge (P05, P08, P10).
+NO_ESTIMATE_FLOOR = 0.85
 FLOOR_MARGIN = -3.0  # outside relationship cases: the lowest supplier margin (%) we plan to ask for
 
 
@@ -81,16 +82,16 @@ def plan(case, std, est, price):
     probe = complete_offer(case, {"unit_price": price})
     # No usable cost estimate (no should-cost, or terms the supplier model cannot read): plan conservatively
     known = margin(case, probe, std, est) is not None
-    low = 0 if known else round((1 - NO_ESTIMATE_FLOOR) * 100)
+    deepest = round((1 - NO_ESTIMATE_FLOOR) * 100)  # with or without an estimate: P10 refused 80%, took 87%
     best = {}
     for combo in itertools.product(*options):
         base = dict(zip(fields, combo, strict=True))
-        for k in range(low, PRICE_STEPS + 1):
+        for k in range(0, deepest + 1):
             sheet = complete_offer(case, {**base, "unit_price": round(price * (1 - k / 100), 2)})
             if not must_haves_ok(case, sheet, std):
                 continue
             m = margin(case, sheet, std, est)
-            if k > low and not relationship_case(case) and m is not None and m < FLOOR_MARGIN:
+            if k > 0 and not relationship_case(case) and m is not None and m < FLOOR_MARGIN:
                 break
             c = cost(case, sheet, std, est if known else {})
             key = repr(base)

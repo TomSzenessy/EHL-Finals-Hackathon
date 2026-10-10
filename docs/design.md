@@ -7,37 +7,44 @@ One job: get the lowest total cost C from a supplier by haggling over as many ro
 with verified claims and a friendly tone, and make every step inspectable. No chat with the agent, no board,
 no manual sending.
 
-## The agent (`agent.py`, `economics.py`, `context.py`)
+## The agent (`agent.py`, `strategy.py`, `economics.py`, `context.py`)
 
-- **System prompt** (`agent.SYSTEM`, overridable with a file, see Settings): the playbook (anchoring, lever
-  probing, calibrated questions, loss framing, shrinking conditional concessions, persistence), tone, what never
-  to reveal, the JSON answer. Every run records the prompt hash and the raw request carries the full text.
-- **Supplier context** (`context.injection`): the case, our private rates and alternative, everything the data
-  package holds on the supplier, a PRICE ANALYSIS (ask vs index-implied cost, past settlements, late payments,
-  contract notice, signals from notes and news such as cash strain or free capacity), injected once.
+**Code decides every number; the model reads the supplier and writes.** What the hosted suppliers taught us
+(practice replays and back office, 2026-10-10) and what the code does about it:
+
+| Observed | Rule in code |
+|---|---|
+| A supplier that can live with one of our sheets answers `agreed`, then "our agreed offer stands" forever (P05). | Our sheets are the ceiling of the deal: a low, reasoned first sheet, then a shrinking share of the gap per round (`strategy.Schedule`); `agreed` is accepted at once. |
+| Suppliers send `final_offer` after 2-6 rounds, and their final price depends on the data they were given far more than on our step size (identical finals in A/B runs). | Steps of 35/30/25/20% of the remaining gap (slower steps scored lower on P07 and P18, never higher); with two messages left, 30%. |
+| Pushing after `final_offer` ended in a walk-away 3 of 3 times (P02, P04, P11): no deal scores 0. | A final offer is accepted without another word (`HAGGLE_PROBE_FINAL=1` re-enables the test, for experiments only). |
+| C_best sat at 84-87% of the opening price where there is no supplier-health charge, and at the C-optimal margin where there is. | `economics.plan` searches every option down to 85% of their price; it reproduces the arena's `c_best` within 1% on P01, P02, P05 and P08. |
+| New verified data moves them ("we took it into account"); a round without it gets "no new data" and a hold. | Claims carry a `strength` (12-month index falls of their cost drivers, forecast, should-cost, rival prices: strong; delivery, price history, one-month windows: weak); the prompt spends two in round 1 and one new one each round. |
+| A structure first offered late was agreed at once at a price far above what it took earlier (P02). | A structure new to the supplier is priced 30% of the way from our anchor to the current step. |
+| A figure the model wrote itself came back `contradicted`, and a final offer followed. A supplier's own earlier quote is `irrelevant` unless the case refers to it. | Every %, EUR or ppm figure in the e-mail must come from a placed claim, a menu price or the supplier's own e-mail, else the e-mail goes back to the model. No own-quote claims. |
+
+- **One general playbook, no per-case rules** (`agent.SYSTEM`): every rule is stated as how suppliers behave, never
+  as a case, supplier or price, because the final plays unknown suppliers. Fixed terms are listed each round as not
+  negotiable; e-mails are English only.
+- **The offer menu** (`strategy.menu`): every allowed option combination priced to the same C (equal-cost
+  packages), terms that cost us nothing set to what the supplier asked for, its own structure first, never below
+  78% of its price or above what it asked for the same structure. The model picks one to three by key and must
+  write the prices as listed.
 - **The score is C, not the unit price.** `economics.py` prices every sheet with the arena's own cost function
-  including our estimate of the supplier-health charge (stabilise and secure_supply cases), which needs the
-  supplier's full cost: the should-cost row times 0.98, capped at 99% of its own ask. The 0.98 is calibrated on
-  settled hosted sessions (the arena's exact breakdown implied 129.95/130.04 vs 132.64 on P01 and 367.6/367.8 vs
-  374.95 on P02); with it the model reproduces `c_deal` and `c_best` of P02 within 0.15%. `plan` searches the
-  allowed options for the cheapest sheet (TARGET) and `levers` shows what each change costs us. Code shows the
-  model these numbers each round; the supplier never hears them. In a stabilise case a lower price can raise C.
-- **Claims are computed, not written.** `context.claims` turns facts.json into sentences the arena checks
-  (index windows incl. the most favourable one, order history, should-cost, forecast, delivery or quality means,
-  contract notice, a rival quote), each with a usage hint and a `helps` flag. The model places up to three with
-  `[[c3]]`; a figure it wrote itself could be wrong. Unknown data IDs in its text are stripped; a cited ID is spent.
-- **Guards**: sheets are completed and priced; a counter that costs more than the cheapest sheet ever offered is
-  refused; no counter more than 12% under their price (an insult ends the thread); `settle` is refused while
-  their sheet is clearly worse than the TARGET; a worse later counter is answered by asking for the best earlier
-  terms back; a model failure, a slow decision (> 45 s) or an internal error becomes a plain polite counter,
-  so the 60-second rule is kept and a crash never closes the case on the opening quote.
-- **`final_offer` is a stop signal.** After "final offer, please decide" any reply that is not a yes (a question,
-  a counter, a restructure) ended the deal in a live run. The agent does not call the model and the case closes
-  on their sheet if it beats the alternative. All room must be won before that point.
-- **RFQs**: one thread and one agent per supplier, in parallel, citing rivals' standing offers. The arena ends a
-  thread left silent for 60 s after the supplier's reply, taking the offer with it, so a settled thread is kept
-  alive (their own standing terms sent back with thanks) until the others finish, and the final accept goes to
-  the cheapest C(est) among threads the arena still lists as open, trying the next if one is refused.
+  including our estimate of the supplier-health charge (stabilise and secure_supply cases), from the should-cost
+  row times 0.98 (calibrated on the arena's exact breakdowns of P01 and P02), capped at 99% of its own ask.
+- **Claims are computed, not written.** `context.claims` turns facts.json into sentences the arena checks; the
+  model places them with `[[c3]]`, code fits them into the sentence. An ID the arena counts once per case (all but
+  `quote:`/`offer:`) is spent for every thread once cited. Unknown IDs in the text are stripped.
+- **Failure never closes on the opening quote**: a model failure, a slow decision (> 40 s) or an internal error
+  sends the first menu package with a plain e-mail.
+- **RFQs**: the arena answers one call per session at a time, so parallel threads queued past their 60 s (P05
+  timed out twice). Every call of a session goes through one gate; after round 1 only the two cheapest bidders
+  keep negotiating; a rival's lower standing offer is cited to the others; the target is the cheapest any bidder
+  allows; when the cheapest bidder settles the case closes on it at once (no keep-alive messages).
+- **Live Final** (`final.py`, `arena-haggle-final`): polls only the final case list, opens each case of a running
+  wave once, plays a wave's cases in parallel, and 75 s before the wave's cap (or the slowest round plus 15 s)
+  closes each case on its cheapest standing sheet. A crashed run is resumed from the arena. Runs are recorded
+  like practice runs (mode `final`).
 
 ## The page (`static/`)
 
@@ -47,9 +54,12 @@ picker. Tabs: **Negotiate** (pick a case, each supplier is a button into its fil
 (every arena and model call exactly as sent and received, drawn only when opened, open rows stay open),
 **Formatted** (the run as readable e-mails, term sheets, claim verdicts, the agent's one-line reasons, result,
 the supplier's reasons), **Suppliers** (the file of any supplier, with its sessions), **Team** (what the arena API
-says about us: quota, best scores, practice board, every session, downloads, health) and **Settings** (provider,
+says about us: quota, best score per case with the session and rounds behind it, unplayed hosted cases (they
+count 0), practice board, every session, downloads, health) and **Settings** (provider,
 model, base URL, endpoint, timeout, write-only API key, system prompt file). Only the tabs that show the running
-negotiation redraw while it runs; Team, Suppliers and Settings never refetch or lose typed edits.
+negotiation redraw while it runs; Team, Suppliers and Settings never refetch or lose typed edits. A run whose
+process stopped mid-way (its file still says running) is shown as stopped; once per server start the page asks the
+arena how that session ended and keeps the answer in the git-ignored `.haggle_cache/`, never in the run file.
 
 ## Trust boundaries
 

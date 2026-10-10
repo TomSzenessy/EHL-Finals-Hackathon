@@ -16,6 +16,7 @@ ui = ["fastapi>=0.115", "uvicorn>=0.30"]
 arena = "arena_kit.cli:main"
 arena-sim = "arena_kit.sim:main"
 arena-haggle = "arena_kit.haggle.__main__:main"
+arena-haggle-final = "arena_kit.haggle.final:main"
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6"]

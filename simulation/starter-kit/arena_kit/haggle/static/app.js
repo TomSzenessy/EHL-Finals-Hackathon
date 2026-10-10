@@ -179,7 +179,8 @@ function viewFormatted() {
   const m = S.meta, ev = S.events;
   const open = ev.find((e) => e.kind === "http" && e.method === "POST" && e.path === "/v1/sessions");
   const first = ev.find((e) => e.kind === "llm");
-  const sys = first && (first.request.system || first.request.messages?.find((x) => x.role === "system")?.content);
+  const used = ev.find((e) => e.kind === "prompt");  // recorded at the start of the run (older runs: none)
+  const sys = used?.text || (first && (first.request.system || first.request.messages?.find((x) => x.role === "system")?.content));
   const ctx = first && first.request.messages?.find((x) => x.role === "user")?.content;
   const bySup = {};
   const col = (s) => bySup[s] ??= { rounds: [], open: open?.response?.threads?.[s]?.[0] };
@@ -198,7 +199,7 @@ function viewFormatted() {
   v.innerHTML = `<div class="card">${chip(m.status)} <b>${esc(m.title || m.case_id)}</b> <span class="muted">${esc(m.mode)} · ${esc(m.session_id || "")}</span>
     ${m.result ? `<div>${m.result.deal ? `Deal with <b>${esc(names[m.result.supplier_id] || m.result.supplier_id)}</b> · C €${eur(m.result.c_deal)} (opening €${eur(m.result.c_open)}, best possible €${eur(m.result.c_best)}) · score <b>${(m.result.score ?? 0).toFixed(2)}</b>` : `No deal (${esc(m.result.end_reason || "ended")})`}</div>` : ""}
     ${m.error ? `<div class="err">${esc(m.error)}</div>` : ""}</div>
-    ${first ? `<details class="card"><summary><b>The agent</b> · system prompt and supplier context it was given</summary><h3>System prompt</h3><pre>${esc(sys || "(sent as a separate system field)")}</pre><h3>Supplier context injected</h3><pre>${esc(ctx || "")}</pre></details>` : ""}
+    ${first || used ? `<details class="card"><summary><b>The agent</b> · system prompt and supplier context this run used</summary><h3>System prompt of this run</h3><p class="muted">${used ? `${esc(used.source)} · ${esc(used.sha)}${S.cfg?.prompt_sha ? (S.cfg?.prompt_sha === used.sha ? " · same as the current prompt in Settings" : " · differs from the current prompt in Settings") : ""}` : "taken from the run's first model call (recorded before prompt versions were kept)"}</p><pre>${esc(sys || "(sent as a separate system field)")}</pre><h3>Supplier context injected</h3><pre>${esc(ctx || "")}</pre></details>` : ""}
     ${Object.entries(bySup).map(([s, c]) => {
       const path = [c.open?.term_sheets?.[0]?.terms?.unit_price, ...c.rounds.map((r) => r.res?.term_sheets?.[0]?.terms?.unit_price)].filter((x) => x !== undefined);
       return `<h2>${esc(names[s] || s)} <span class="muted">${esc(s)}</span></h2>${path.length ? `<p class="path">Their standing price: ${path.map(eur).join(" → ")}</p>` : ""}
@@ -278,6 +279,18 @@ function paintDossier(d) {
 
 // ---- team ------------------------------------------------------------------------------------
 const ago = (t) => new Date(t * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+// Best score per case, the session that set it and its rounds (what the board's "rounds" adds up), plus the
+// hosted cases not played yet, which count 0.
+function bestRows(best, sessions, board) {
+  const rows = Object.entries(best).map(([k, x]) => {
+    const s = (Array.isArray(sessions) ? sessions : []).find((r) => r.case_id === k && Math.abs((r.score ?? -1) - x) < 1e-9);
+    return { case: k.replace("case:", ""), best: x.toFixed(2), "rounds (all threads)": s?.rounds ?? "", session: s?.session_id ?? "" };
+  });
+  const total = rows.reduce((n, r) => n + (Number(r["rounds (all threads)"]) || 0), 0);
+  const missing = (S.cases?.cases || []).map((c) => c.case_id).filter((id) => !(id in best));
+  return [...rows, ...missing.map((id) => ({ case: id.replace("case:", ""), best: "not played (counts 0)", "rounds (all threads)": "", session: "" })),
+    { case: "total", best: "", "rounds (all threads)": total, session: "" }];
+}
 async function viewTeam() {
   const v = $("#view");
   v.innerHTML = `<p class="muted">Asking the arena…</p>`;
@@ -293,7 +306,8 @@ async function viewTeam() {
   v.innerHTML = `<p class="muted">What the ${esc(S.mode)} arena's API says about us, read now. Scores here are the arena's own.</p>
     ${part("Team and quota", t.me, (m) => `<div class="card">${kv({ team: m.team_name, status: m.status,
       "practice sessions used": `${m.practice?.used} of ${m.practice?.limit} (${m.practice?.left} left)`, "next one frees up": m.practice?.resets_at })}
-      <h3>Best score per case</h3>${m.best && Object.keys(m.best).length ? table(Object.entries(m.best).map(([k, x]) => ({ case: k.replace("case:", ""), best: x.toFixed(2) }))) : `<p class="muted">No scored session yet.</p>`}</div>`)}
+      <h3>Best score per case</h3>${m.best && Object.keys(m.best).length ? table(bestRows(m.best, t.sessions, t.leaderboard)) : `<p class="muted">No scored session yet.</p>`}
+      <p class="muted">The board counts every hosted case: a case we have not played scores 0 in the mean. Its "rounds" column adds up the messages of our best session per case, across all supplier threads (an RFQ with three suppliers counts the messages to each), so it can be far above the number of rounds of any one negotiation. Rounds only break exact ties.</p></div>`)}
     ${part("Practice leaderboard", t.leaderboard, (b) => table((b.teams || b.rows || []).map((r) => ({ rank: r.rank, team: r.team_name,
       total: r.total, played: r.played, deals: r.deals, rounds: r.rounds, "": r.team_name === me?.team_name ? "← us" : "" }))))}
     ${part("Our practice sessions", t.sessions, sessions)}${part("Our sandbox sessions", t.sandbox_sessions, sessions)}

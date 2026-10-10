@@ -4,6 +4,7 @@ A run is a JSONL file: every event in order (each arena request/response, each m
 decision) and `{"meta": ...}` lines with its latest summary. Headers are never recorded, so no key
 can end up in a file."""
 
+import hashlib
 import json
 import threading
 import time
@@ -12,19 +13,54 @@ import uuid
 from pathlib import Path
 
 from arena_kit.client import ArenaError
-from arena_kit.cost import complete_offer, must_haves_ok, total_cost
-from arena_kit.docs import standard_terms
-from arena_kit.play import RemoteTable, closing_move, fetch_documents, latest, live_threads, moves_left, standing
+from arena_kit.cost import must_haves_ok, total_cost
+from arena_kit.docs import read_document, standard_terms
+from arena_kit.play import RemoteTable, closing_move, live_threads, moves_left, standing
 
 from . import economics as eco
-from .agent import SYSTEM, Negotiator
+from .agent import SYSTEM, Negotiator, Shared
 from .context import analysis, claims, document, dossier, injection, names
 
 RESULT_KEYS = ("deal", "supplier_id", "terms", "c_open", "c_deal", "c_best", "score", "end_reason", "must_haves_ok")
+FOCUS = 2  # an RFQ keeps negotiating with this many suppliers after round 1: the arena answers one call per session
+# at a time, so a third live thread makes each of the others wait past its 60 s
+SKIP_DOCS = ("delivery-schedule", "delivery_schedule")  # attachments the agent does not read: each fetch queues
+
+
+def code_version():
+    """The commit this code runs from, so runs from different clones and experiments can be told apart."""
+    import subprocess
+
+    try:
+        here = Path(__file__).parent
+        sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=here, capture_output=True, text=True, timeout=3
+        )
+        dirty = subprocess.run(["git", "status", "--porcelain", "--", "."], cwd=here, capture_output=True, text=True,
+                               timeout=3)  # fmt: skip
+        return sha.stdout.strip() + ("+changes" if dirty.stdout.strip() else "") or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def fetch_needed(table, message):
+    """Download the attachments the agent reads (quote PDFs, cost breakdowns, 8D reports) and add their text."""
+    for att in message.get("attachments") or []:
+        if att.get("attachment_id") and "text" not in att and not any(k in att.get("name", "") for k in SKIP_DOCS):
+            att["text"] = read_document(att["name"], table.attachment(att["attachment_id"]))
+    return message
 
 
 class Run:
-    def __init__(self, mode, case_id, folder, arenas, pkg, llm, system=None, prompt_source="built-in"):
+    # Live Final: stop negotiating this long before the wave's cap (or the slowest round so far plus a margin, if
+    # longer) and close on the cheapest standing sheet: a session still open at the cap ends with no deal.
+    CLOSE_BEFORE_CAP_S, ROUND_MARGIN_S = 75, 15
+
+    def __init__(
+        self, mode, case_id, folder, arenas, pkg, llm, system=None, prompt_source="built-in", deadline=None, case=None
+    ):
+        self.deadline, self.case_file = deadline, case  # final: a callable giving the wave's cap (time.time())
+        self.slowest = 0.0
         self.id = f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:4]}"
         self.path = Path(folder) / f"{self.id}.jsonl"
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -38,7 +74,11 @@ class Run:
             "status": "starting",
             "started": time.time(),
             "model": llm.model,
+            "prompt_source": prompt_source,
+            "code": code_version(),  # which codebase played it: commit, "+changes" if the tree was edited
+            "prompt_sha": hashlib.sha256(self.system.encode()).hexdigest()[:10],
         }
+        self.prompt_source = prompt_source
 
     # -- recording -----------------------------------------------------------------------------
     def emit(self, kind, **data):
@@ -88,6 +128,8 @@ class Run:
     def execute(self):
         client = None
         try:
+            # the exact system prompt of this run, so the page shows what this run used (Settings shows the current one)
+            self.emit("prompt", source=self.prompt_source, sha=self.meta["prompt_sha"], text=self.system)
             client = self.arenas.client(self.meta["mode"])
             self.hooks(client)
             self._play(client)
@@ -101,8 +143,16 @@ class Run:
                 client.http.close()
 
     def _play(self, client):
-        table = RemoteTable(client)
-        case, threads = table.open(self.meta["case_id"])
+        table = RemoteTable(client, self.case_file)  # with the case file a crashed final session is resumed
+        for wait in (*[10, 20, 30] + [60] * 9, 0):  # the 10 open sessions per key are shared by every clone: ~10 min
+            try:
+                case, threads = table.open(self.meta["case_id"])
+                break
+            except ArenaError as exc:
+                if exc.status != 429 or "open session" not in str(exc.detail) or not wait:
+                    raise
+                self.update(status="starting", note=f"waiting for a free session slot: {exc.detail}")
+                time.sleep(wait)
         self.update(
             session_id=table.session_id,
             title=case["title"],
@@ -113,9 +163,12 @@ class Run:
         )
         for events in threads.values():
             for m in events:
-                fetch_documents(table, m)
-        self.result, self.negs, self.table = None, {}, table
-        self.active, self.holding = set(live_threads(threads)), set()  # running / settled and kept alive
+                fetch_needed(table, m)
+        # a resumed final session that had already ended keeps its result; no thread then plays
+        self.result, self.negs, self.table = getattr(table, "done", None), {}, table
+        self.shared, self.gate, self.close_lock = Shared(), threading.Lock(), threading.Lock()
+        self.closing = threading.Event()
+        self.active, self.dormant = set(live_threads(threads)), set()
         workers = [threading.Thread(target=self._thread, args=(table, case, threads, s)) for s in live_threads(threads)]
         for w in workers:
             w.start()
@@ -155,83 +208,90 @@ class Run:
                 cands,
                 lambda rec: self.emit("llm", supplier=sup, **rec),
                 self.system,
+                self.shared,
             )
+            neg.dossier = dos
             self.negs[sup] = neg
             events = threads[sup]
             while self.result is None and sup in live_threads(threads) and moves_left(case, events) > 0:
+                t0 = time.monotonic()
                 rnd = sum(m.get("from") == "buyer" for m in events) + 1
+                if self._near_cap():
+                    self.emit(
+                        "decision", supplier=sup, round=rnd, action="cap", rationale="The wave's cap is near: close."
+                    )
+                    return
+                if rnd > 1 and self._out_of_focus(threads, sup):
+                    self.dormant.add(sup)
+                    self.emit(
+                        "decision",
+                        supplier=sup,
+                        round=rnd,
+                        action="dormant",
+                        rationale=f"Not among the {FOCUS} best offers: stop so the leading threads answer in time.",
+                    )
+                    return
                 action, message, meta = neg.step(events, self._rivals(case, threads, sup), dos)
                 self.emit("decision", supplier=sup, round=rnd, action=action, message=message, **meta)
                 if action == "settle":
-                    self._hold(table, case, threads, sup, events)
+                    self._settled(table, case, threads, sup)
                     return
-                try:
-                    reply = table.send(sup, message)
-                except ArenaError as exc:
-                    if exc.status != 409:
-                        raise
-                    reply = table.missed(sup, exc)  # late, or the thread or the case has ended
-                    if "result" in reply:
-                        self.result = reply["result"]
+                with self.gate:  # the arena answers one call per session at a time: queue here, not there
+                    if self.result is not None or self.closing.is_set():
                         return
-                neg.sent()
-                events += [{**message, "from": "buyer"}, fetch_documents(table, reply)]
+                    try:
+                        reply = table.send(sup, message)
+                    except ArenaError as exc:
+                        if exc.status != 409:
+                            raise
+                        reply = table.missed(sup, exc)  # late, or the thread or the case has ended
+                        if "result" in reply:
+                            self.result = reply["result"]
+                            return
+                    neg.sent()
+                    events += [{**message, "from": "buyer"}, fetch_needed(table, reply)]
                 if "result" in reply:
                     self.result = reply["result"]
                     return
+                self.slowest = max(self.slowest, time.monotonic() - t0)
         except Exception as exc:  # one broken thread must not stop the others
             self.emit("error", supplier=sup, error=f"{type(exc).__name__}: {exc}", trace=traceback.format_exc()[-2000:])
         finally:
             self.active.discard(sup)
 
-    KEEPALIVE_S = 30  # the arena ends a thread we leave silent for 60 s after the supplier's reply
+    def _near_cap(self):
+        cap = self.deadline() if callable(self.deadline) else self.deadline
+        return bool(cap) and time.time() > cap - max(self.CLOSE_BEFORE_CAP_S, self.slowest + self.ROUND_MARGIN_S)
 
-    def _hold(self, table, case, threads, sup, events):
-        """This thread has settled, but others in an RFQ are still negotiating. Keep it alive until they finish:
-        the arena closes a thread whose reply we leave unanswered for 60 s, and with it the offer we want to
-        accept. The message changes nothing: their own standing terms back, with thanks."""
-        self.holding.add(sup)
-        try:
-            self._keep(table, case, threads, sup, events)
-        finally:
-            self.holding.discard(sup)
+    def _out_of_focus(self, threads, sup):
+        """In an RFQ with more than FOCUS live threads, is this supplier's best sheet outside the FOCUS cheapest?"""
+        live = [s for s in live_threads(threads) if s in self.active and s not in self.dormant]
+        if len(live) <= FOCUS:
+            return False
+        ranked = []
+        for s in live:
+            neg = self.negs.get(s)
+            if neg is None or neg.est is None or len(threads[s]) < 3:
+                return False  # not every thread has its first reply priced yet
+            std = eco.full_standard(neg.dossier, standard_terms(threads[s]))
+            ranked.append((neg.their_c(threads[s], std), s))
+        ranked.sort()
+        return sup not in [s for _, s in ranked[:FOCUS]]
 
-    def _keep(self, table, case, threads, sup, events):
-        last = time.monotonic()
-        # wait only for suppliers that are still negotiating, not for others that are also just waiting
-        while (
-            self.result is None
-            and self.active - self.holding
-            and sup in live_threads(threads)
-            and moves_left(case, events) > 0
-        ):
-            time.sleep(1)
-            if time.monotonic() - last < self.KEEPALIVE_S:
-                continue
-            _, terms = standing(events)
-            message = {
-                "subject": f"Re: {latest(events).get('subject', case['title'])}"[:300],
-                "body": "Thank you for your message. We are comparing the offers we have and will confirm shortly.\n\n"
-                "Kind regards\nHollerau Pumpenwerke, Purchasing",
-                "term_sheets": [{"terms": complete_offer(case, terms)}],
-            }
-            self.emit(
-                "decision",
-                supplier=sup,
-                round=None,
-                action="keep alive",
-                message=message,
-                rationale="Settled, but other suppliers are still negotiating: keep this thread open.",
-            )
-            try:
-                reply = table.send(sup, message)
-            except ArenaError:
+    def _settled(self, table, case, threads, sup):
+        """A thread is done. Alone, the case closes when every thread is done. In an RFQ, if this supplier's sheet is
+        the cheapest standing sheet, close the case on it now: every further call only delays it, and a sheet left
+        unanswered for 60 s starts to time out."""
+        if len(case["suppliers"]) < 2:
+            return
+        with self.close_lock:
+            if self.result is not None:
                 return
-            events += [{**message, "from": "buyer"}, fetch_documents(table, reply)]
-            last = time.monotonic()
-            if "result" in reply:
-                self.result = reply["result"]
-                return
+            cands = self._candidates(case, threads)
+            if cands and cands[0][1] == sup:
+                self.closing.set()  # no other thread starts another call: each one holds the session up to a minute
+                with self.gate:
+                    self.result = self._close(table, case, threads)
 
     @staticmethod
     def _rivals(case, threads, sup):
@@ -257,14 +317,32 @@ class Run:
         for sup in live_threads(threads):
             if (state.get(sup) or {}).get("closed"):
                 continue  # the arena already ended this thread: its sheet is gone
+            now_id = (state.get(sup) or {}).get("offer_id")
+            if now_id and now_id != standing(threads[sup])[0]:
+                self._refresh(sup, threads, now_id)  # a timeout replaced the sheet we know (P05: 422 on accept)
             sheet_id, terms = standing(threads[sup])
             neg = self.negs.get(sup)
             if not sheet_id or neg is None:
                 continue
             std = eco.full_standard(neg.dossier, standard_terms(threads[sup]))
+            neg.prepare(threads[sup], std)  # a thread closed before its first decision has no estimate yet
             if must_haves_ok(case, terms, std) and (c := neg.c(terms, std)) < c_alt:
                 out.append((c, sup, sheet_id))
         return sorted(out)
+
+    def _refresh(self, sup, threads, offer_id):
+        """The arena's current sheet of a thread, from its record: while this thread waited for the session (another
+        supplier's reply can hold it for a minute), a timeout repeated our last offer and the supplier answered."""
+        try:
+            t = self.table.client.thread(self.table.session_id, sup)
+        except ArenaError:
+            return
+        for m in reversed(t.get("messages") or []):
+            if m.get("from") != "buyer" and any(x.get("term_sheet_id") == offer_id for x in m.get("term_sheets") or []):
+                threads[sup].append(m)
+                why = f"The arena's standing sheet is now {offer_id}: read it back before accepting."
+                self.emit("decision", supplier=sup, round=None, action="refresh", rationale=why)
+                return
 
     def _close(self, table, case, threads):
         """Accept the cheapest standing sheet that keeps the must-haves and beats our alternative, else walk away.

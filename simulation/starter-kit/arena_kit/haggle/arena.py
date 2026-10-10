@@ -11,7 +11,7 @@ from arena_kit.play import hosted
 from arena_kit.sim import Sim, create_app, load_cases
 
 LOCAL_URL = "http://local.arena"
-MODES = ("online", "offline")
+MODES = ("online", "offline", "final")  # final: the hosted arena's Live Final (same key and URL as online)
 
 
 class _InProcess(httpx.BaseTransport):
@@ -38,8 +38,8 @@ class Arenas:
                 self._offline_key = c.register("Haggle", "sim")["api_key"]
             c.http.headers["X-API-Key"] = self._offline_key
             return c
-        if mode != "online":
-            raise ArenaError(422, "mode must be online or offline")
+        if mode not in ("online", "final"):
+            raise ArenaError(422, "mode must be online, offline or final")
         if not os.environ.get("ARENA_API_KEY"):
             raise ArenaError(400, "Online needs ARENA_API_KEY in .env (your team's key from the arena).")
         return ArenaClient(os.environ.get("ARENA_URL", "https://arena.tacto.ai"))
