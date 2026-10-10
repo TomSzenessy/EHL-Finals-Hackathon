@@ -100,9 +100,10 @@ async function viewNegotiate() {
     : `<p class="muted">Built-in scripted supplier: no key, no quota, not the real suppliers.</p>`) +
     `<div class="grid">${S.cases.cases.map((c) => `<div class="card"><div><b>${esc(c.title)}</b></div>
       <div class="muted">${chip(c.type.replace("_", " "))} ${esc(c.case_id)} · up to ${c.round_limit} rounds</div>
-      <div class="muted">${c.suppliers.map((s) => esc(s.name)).join(" · ")}</div>
+      <div class="sups">${c.suppliers.map((s) => `<button class="btn ghost" data-sup="${esc(s.id)}" title="Inspect all data on this supplier">${esc(s.name)} ›</button>`).join("")}</div>
       ${best[c.case_id] !== undefined ? `<div class="muted">Best score so far ${best[c.case_id].toFixed(2)}</div>` : ""}
       <button class="btn" data-case="${esc(c.case_id)}" ${busy || !S.cfg.llm_configured ? "disabled" : ""}>Haggle</button></div>`).join("")}</div>`;
+  box.querySelectorAll("[data-sup]").forEach((b) => b.onclick = () => { S.supplier = b.dataset.sup; setTab("suppliers"); });
   box.querySelectorAll("[data-case]").forEach((b) => b.onclick = async () => {
     b.disabled = true;
     try {
@@ -233,13 +234,18 @@ function outcome(end, m) {
 async function viewSuppliers() {
   const v = $("#view");
   const list = await api("/api/suppliers");
-  if (!list.length) { v.innerHTML = `<p class="muted">Suppliers appear here once you have run a negotiation.</p>`; return; }
+  const known = new Map(list.map((x) => [x.id, x]));
+  for (const c of S.cases?.cases || []) for (const sp of c.suppliers) if (!known.has(sp.id)) known.set(sp.id, { ...sp, runs: [] });
+  if (S.supplier && !known.has(S.supplier)) known.set(S.supplier, { id: S.supplier, name: S.supplier, runs: [] });
+  const all = [...known.values()];
+  if (!all.length) { v.innerHTML = `<p class="muted">Pick a case on the Negotiate tab to see its suppliers.</p>`; return; }
   const cur = S.meta?.suppliers?.map((s) => s.id) || [];
-  list.sort((a, b) => cur.includes(b.id) - cur.includes(a.id));
-  S.supplier = list.some((s) => s.id === S.supplier) ? S.supplier : list[0].id;
-  const s = list.find((x) => x.id === S.supplier);
-  v.innerHTML = `<div class="tools"><label class="muted">Supplier <select id="sup">${list.map((x) => `<option value="${esc(x.id)}" ${x.id === S.supplier ? "selected" : ""}>${esc(x.name)}${cur.includes(x.id) ? " (current)" : ""}</option>`).join("")}</select></label></div>
-    <h2 style="margin-top:0">Sessions</h2>${table(s.runs.map((r) => ({ when: when(r.started), arena: r.mode, case: r.case_id, outcome: r.status === "done" ? (r.deal ? `deal, score ${(r.score ?? 0).toFixed(2)}` : "no deal") : r.status })))}
+  const rank = (x) => (cur.includes(x.id) ? 2 : x.runs.length ? 1 : 0);
+  all.sort((a, b) => rank(b) - rank(a) || a.name.localeCompare(b.name));
+  S.supplier = known.has(S.supplier) ? S.supplier : all[0].id;
+  const s = known.get(S.supplier);
+  v.innerHTML = `<div class="tools"><label class="muted">Supplier <select id="sup">${all.map((x) => `<option value="${esc(x.id)}" ${x.id === S.supplier ? "selected" : ""}>${esc(x.name)}${cur.includes(x.id) ? " (current)" : ""}</option>`).join("")}</select></label></div>
+    <h2 style="margin-top:0">Sessions</h2>${s.runs.length ? "" : `<p class="muted">No session with this supplier yet.</p>`}${s.runs.length ? table(s.runs.map((r) => ({ when: when(r.started), arena: r.mode, case: r.case_id, outcome: r.status === "done" ? (r.deal ? `deal, score ${(r.score ?? 0).toFixed(2)}` : "no deal") : r.status }))) : ""}
     <div id="dos"><p class="muted">Loading the supplier file…</p></div>`;
   $("#sup").onchange = (e) => { S.supplier = e.target.value; viewSuppliers(); };
   try { paintDossier(await api(`/api/suppliers/${encodeURIComponent(S.supplier)}`)); }

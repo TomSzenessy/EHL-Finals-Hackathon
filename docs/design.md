@@ -29,7 +29,7 @@ no chat with the agent, no board, no manual sending.
 
 One screen, no sidebar. The header holds the **Online / Offline** toggle (online: the hosted arena and its 10
 hosted practice cases; offline: arena-sim in this process with its scripted supplier, no key, no quota) and
-the session picker. Four tabs: **Negotiate** (pick a case, watch the run), **Raw JSON** (every arena call and
+the session picker. Four tabs: **Negotiate** (pick a case, watch the run; every supplier on a case card is a button into its file), **Raw JSON** (every arena call and
 model call exactly as sent and received, drawn only when opened; a live run adds rows without collapsing the
 ones you have open), **Formatted** (the same run as readable
 e-mails, term sheets, claim verdicts, the agent's one-line reasons, the result and the supplier's reasons),

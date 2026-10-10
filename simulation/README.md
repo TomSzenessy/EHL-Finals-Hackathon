@@ -13,6 +13,11 @@ uv sync --extra ui
 uv run --extra ui arena-haggle   # http://127.0.0.1:8100
 ```
 
+On a new machine: install [uv](https://docs.astral.sh/uv/) (it fetches Python 3.12 itself), clone the repo and
+run the three commands above. The data package is in the repo (`simulation/data`, `ARENA_DATA=../data` is the
+default), so only the keys are yours to add to `.env`: `ARENA_API_KEY` (team key, for Online) and
+`LLM_MODEL` + `LLM_API_KEY` (for the agent). Offline needs only the model. `.env` and `runs/` are git-ignored.
+
 Header toggle: **Online** plays the 10 hosted practice cases on the real arena (each run uses one of your
 200 daily practice sessions); **Offline** plays three examples against the built-in scripted supplier (no
 key, no quota; it only teaches the API, not the real suppliers).
@@ -28,7 +33,7 @@ key, no quota; it only teaches the API, not the real suppliers).
 
 ## The page
 
-**Negotiate** (pick a case, watch it run) · **Raw JSON** (every arena and model request and response, as
+**Negotiate** (pick a case, watch it run; each supplier on a case is a button that opens its full file) · **Raw JSON** (every arena and model request and response, as
 sent; rows you open stay open while a run is still adding events) · **Formatted** (the same run as readable e-mails, term sheets, claim verdicts, reasons and result) ·
 **Suppliers** (the supplier file for the current and every earlier session).
 
