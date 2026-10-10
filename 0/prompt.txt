@@ -1,0 +1,13 @@
+Here you have the localhost link to a dashboard one of my teammates created where you can see how the agent performed: [http://127.0.0.1:8100/](http://127.0.0.1:8100/)
+
+I want you to improve the prompt to get the best results on this negotiation. the faq is here: [https://arena.tacto.ai/faq](https://arena.tacto.ai/faq)
+
+---
+
+<send_user_message_question_reply>
+[{"questionItemId":"[\"request_user_input_async\",\"call_4503ae55811540419da26b1767a40e5f\",0]","question":"Should I optimize the shared prompt across all practice cases, or focus on one case?","answer":"All practice cases (recommended)"}]
+</send_user_message_question_reply>
+
+---
+
+do you only change the prompt or do you also use the api to make pushes?
