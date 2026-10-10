@@ -14,7 +14,7 @@ import re
 import threading
 import time
 
-from arena_kit.cost import complete_offer, must_haves_ok
+from arena_kit.cost import complete_offer, must_haves_ok, total_cost
 from arena_kit.docs import standard_terms
 from arena_kit.play import latest, moves_left, offers, standing
 
@@ -29,6 +29,7 @@ MAX_CLAIMS = 3  # the arena reads at most 3 arguments per message
 DECISION_BUDGET_S = 40  # the arena allows 60 s from the supplier's reply; an RFQ may queue behind another thread
 AT_TARGET = 1.004  # a sheet within 0.4% of the estimated best C needs no further push
 PER_SUPPLIER = ("quote:", "offer:")  # IDs the arena counts once per supplier; every other ID once per case
+ALT_MARGIN = 0.002  # our sheets stay this share of C under the alternative
 FRESH_SHARE = 0.3  # a structure new to the supplier is priced this share of the way from our anchor to this step
 
 
@@ -254,6 +255,11 @@ class Negotiator:
                 self.shared.targets[self.sup] = own
             return min(self.shared.targets.values(), default=own)
 
+    def alt_c(self):
+        """What our alternative (today's contract, a second-source quote) costs us; infinite without one."""
+        alt = (self.case["buyer"].get("alternative") or {}).get("terms") or {}
+        return total_cost(self.case, alt) if alt.get("unit_price") else math.inf
+
     def their_c(self, events, std):
         """The cheapest sheet the supplier has on the table now, by our C."""
         return min((self.c(t, std) for _, t in offers(events) if t.get("unit_price")), default=math.inf)
@@ -397,12 +403,18 @@ class Negotiator:
             rival = min((c for s_, c in self.shared.theirs.items() if s_ != self.sup), default=math.inf)
         if rival < now:  # a tender: never offer a bidder more than the cheapest rival's sheet costs us
             goal = min(goal, rival * 0.995)
+        alt = self.alt_c()
         if self.price_held(events) and self.terms_trade(events, std):
-            if min(m["c"] for m in self.trade_items) < rival:  # in a tender only if it would beat the cheapest rival
+            # in a tender only if it would beat the cheapest rival; never if it costs more than our alternative
+            if min(m["c"] for m in self.trade_items) < min(rival, alt):
                 return "terms", None
         eps = max(1.0, 0.0005 * now)
         if goal >= now - eps and moved and left > 1 and sched.ours:
             goal = sched.ours[-1] + 0.3 * max(now - sched.ours[-1], 0)  # still moving: a small step, not a settle
+        if goal > alt and now > alt:
+            # A sheet that costs more than our alternative is one we could never close on: the close would walk away
+            # from it (offline P12, P15: the supplier agreed to our sheet, we walked). Stop the climb just under it.
+            goal = alt * (1 - ALT_MARGIN)
         if goal >= now - eps:
             return "settle", "Our schedule has reached their sheet."
         return "send", goal
@@ -491,6 +503,11 @@ class Negotiator:
                 items = [{"key": "A", "terms": sheet, "c": self.c(sheet, std), "worth": 0}]
             else:
                 items = items[:1]
+        cheaper = [m for m in items if m["c"] < self.alt_c()]  # a clause package may sit up to 1% over the goal
+        if len(cheaper) < len(items):
+            items = cheaper
+            for i, m in enumerate(items):
+                m["key"] = "ABCDEFGHIJ"[i]
         return items
 
     def _step(self, events, rivals=None, dossier=None):
@@ -631,6 +648,21 @@ class Negotiator:
         if (
             moves_left(self.case, events) > 0
             and standing_terms.get("unit_price")
+            and not must_haves_ok(self.case, standing_terms, std)
+            and not getattr(self, "kept_must_haves", False)
+        ):
+            # Their sheet breaks a must-have (a field left out closes on their standard terms, P11: 6400 ppm; or their
+            # own value, P10: a volume under the need), so the close could only walk away: no deal scores 0 or the
+            # alternative. Once, even after a final offer (walking costs the same): their price, their terms, the
+            # must-have fields set to the cheapest allowed values that keep them.
+            fixed = self.keep_must_haves(standing_terms, std)
+            if fixed is not None:
+                self.kept_must_haves = True
+                self.best = (self.c(fixed, std), fixed)
+                return self.rescue(events, std, self.MUST_HAVE_LEAD)
+        if (
+            moves_left(self.case, events) > 0
+            and standing_terms.get("unit_price")
             and self.c(standing_terms, std) > now * 1.002
             and not getattr(self, "took_alternative", False)
         ):
@@ -655,6 +687,25 @@ class Negotiator:
         return "settle", None, {"rationale": why, "attempts": 0, "fallback": None}
 
     EARLIER = "Your earlier proposal was the better fit for both sides, so we would like to go ahead"
+    MUST_HAVE_LEAD = "We accept your price and would like to go ahead with the terms our requirements need"
+
+    def keep_must_haves(self, terms, std):
+        """Their sheet with the must-have fields changed to the allowed values that keep every must-have, cheapest for
+        us; None if no allowed value keeps them."""
+        import itertools
+
+        base = complete_offer(self.case, terms)
+        if must_haves_ok(self.case, base, std):
+            return base
+        opts = self.case.get("term_options", {})
+        fields = list(dict.fromkeys(m["field"] for m in self.case["buyer"].get("must_haves", [])
+                                    if m["field"] in self.case["negotiable"] and opts.get(m["field"])))  # fmt: skip
+        best = None
+        for combo in itertools.product(*(opts[f] for f in fields)):
+            sheet = complete_offer(self.case, {**base, **dict(zip(fields, combo, strict=True))})
+            if must_haves_ok(self.case, sheet, std) and (best is None or self.c(sheet, std) < best[0]):
+                best = (self.c(sheet, std), sheet)
+        return best and best[1]
 
     def rescue(self, events, std, lead=EARLIER):
         """Ask for a sheet of theirs back: an earlier, better counter, or their own cheaper alternative."""

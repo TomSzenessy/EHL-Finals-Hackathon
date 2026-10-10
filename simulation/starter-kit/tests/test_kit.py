@@ -361,3 +361,21 @@ def test_practice_plays_the_hosted_cases():
     out = play_all(Used, ["case:P01", "case:P02", "case:P03"], NaiveAgent, parallel=1)
     assert all(isinstance(e, ArenaError) and e.status == 429 for e in out.values())
     assert "not started" in out["case:P03"].detail
+
+
+def test_clients_of_one_key_share_the_per_second_limit():
+    """The arena limits calls per key: every case of a Live Final wave has its own client, so they pace together
+    (ten clients pacing alone sent ~90 calls a second and a case closed on its opening offer after three 429s)."""
+    import time
+
+    from arena_kit.client import ArenaClient
+
+    a = ArenaClient("http://arena.test", "key-shared-test", rate=20)
+    b = ArenaClient("http://arena.test", "key-shared-test", rate=20)
+    other = ArenaClient("http://arena.test", "another-key", rate=20)
+    assert a._shared is b._shared and a._shared is not other._shared
+    t0 = time.monotonic()
+    for _ in range(5):
+        a._pace()
+        b._pace()
+    assert time.monotonic() - t0 >= 9 / 20 - 0.01  # ten calls of one key at 20 a second take at least 0.45 s

@@ -424,3 +424,43 @@ def test_a_supplier_under_strain_keeps_our_rate_for_money(pkg):
     dos = {**dossier(pkg, "sup:70510", P02), "news": [{"topic": "restructuring"}]}
     est = eco.estimate(P02, dos, eco.full_standard(dos, PDF_STANDARD), ask=370.96)
     assert est["interest_rate"] == P02["buyer"]["interest_rate"]
+
+
+def test_our_sheets_never_cost_more_than_our_alternative(pkg):
+    """A sheet dearer than our alternative is one we could never close on: offline P12 and P15 (today's contract as the
+    alternative) climbed past it, the supplier agreed to our sheet and the close walked away. The climb stops under it."""
+    from arena_kit.cost import total_cost
+    from arena_kit.haggle.agent import Negotiator
+
+    alt = {"unit_price": 364.0, "payment_days": 30, "index_clause": None}
+    case = {**P02, "buyer": {**P02["buyer"], "category_goal": "leverage",
+                             "alternative": {"kind": "current_contract", "terms": alt}}}  # fmt: skip
+    neg = Negotiator(case, "sup:70510", ScriptedLLM(), pkg, "context", [], lambda r: None)
+    neg.dossier = dossier(pkg, "sup:70510", case)
+    c_alt = total_cost(case, alt)
+    events = _thread()
+    for price in (369.9, 369.6, 369.4, 369.3, 369.2, 369.1):
+        kind, message, meta = neg.step(events)
+        if kind != "send":
+            break
+        neg.sent()
+        assert max(meta["sheet_costs"]) < c_alt
+        events = _reply(events, "open", price)
+
+
+def test_a_sheet_that_breaks_a_must_have_is_sent_back_with_the_must_have_kept(pkg):
+    """A field their sheet leaves out closes on their standard terms (offline P11: 6400 ppm against a 1500 limit), or
+    their own value breaks the limit (P10: a volume under the need): the close could only walk away, which scores 0.
+    Before that, once and even after a final offer, their price goes back with the must-have fields kept."""
+    from arena_kit.haggle.agent import Negotiator
+
+    case = {**P02, "buyer": {**P02["buyer"], "must_haves": [{"field": "payment_days", "op": ">=", "value": 45}]}}
+    neg = Negotiator(case, "sup:70510", ScriptedLLM(), pkg, "context", [], lambda r: None)
+    neg.dossier = dossier(pkg, "sup:70510", case)
+    events = _reply(_thread(), "final_offer", 365.0)  # their final sheet: 30 days, under the must-have
+    kind, message, _ = neg.step(events)
+    assert kind == "send"
+    sheet = message["term_sheets"][0]["terms"]
+    assert sheet["unit_price"] == 365.0 and sheet["payment_days"] >= 45
+    kind, _, _ = neg.step(_reply(events, "final_offer", 365.0))
+    assert kind == "settle"  # once only

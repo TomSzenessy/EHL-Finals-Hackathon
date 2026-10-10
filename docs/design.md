@@ -34,6 +34,10 @@ the rule in code for each lesson: [`haggle-evidence.md`](./haggle-evidence.md).
 - **Empty menus are not optimality evidence**: a model failure, a slow decision (> 40 s), an internal error,
   or an infeasible target menu uses a guarded counter: a menu package 2% (in C) under their best sheet, on the
   structure that is best for us at that cost, never their own structure at a lower price.
+- **Never a sheet we could not close on**: no sheet costs more than our alternative (today's contract, a second-source
+  quote): the climb, the menu and the terms trade stop under it. A supplier sheet that breaks a must-have (a field it
+  leaves out closes on its standard terms) is sent back once, even after a final offer, at its price with the
+  must-have fields kept, before the close would walk away. All API clients of one key share its per-second limit.
 - **RFQs**: the arena answers one call per session at a time, so parallel threads queued past their 60 s (P05
   timed out twice). Every call of a session goes through one gate; after round 1 only the two cheapest bidders
   keep negotiating; a rival's lower standing offer is cited to the others; the target is the cheapest any bidder

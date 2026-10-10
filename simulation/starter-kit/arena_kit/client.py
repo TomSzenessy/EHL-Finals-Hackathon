@@ -22,6 +22,17 @@ ME_PATH = "/me"
 # A 429 with a short Retry-After is the per-second rate limit: wait and retry. Any other 429 (the
 # practice quota, too many open sessions) does not go away by retrying.
 MAX_RETRY_AFTER_S = 5
+# The per-second limit is per key, not per client: every case of a Live Final wave opens its own client at the same
+# moment, so the pacing is shared by every client of one key (ten clients pacing alone sent ~90 calls a second, and
+# a case whose send failed on 429 three times closed on the opening offer). A short 429 is retried this many times.
+RATE_RETRIES = 30
+_PACERS = {}
+_PACERS_LOCK = threading.Lock()
+
+
+def _pacer(base_url, key):
+    with _PACERS_LOCK:
+        return _PACERS.setdefault((base_url, key), [threading.Lock(), 0.0])
 
 
 class ArenaError(Exception):
@@ -46,20 +57,22 @@ class ArenaClient:
             raise ValueError("set ARENA_URL (e.g. https://…) or pass base_url")
         key = api_key or os.environ.get("ARENA_API_KEY")
         headers = {"X-API-Key": key} if key else {}
-        self.retries, self.rate, self._lock, self._next = retries, rate, threading.Lock(), 0.0
+        self.retries, self.rate, self._shared = retries, rate, _pacer(base_url, key)
         self.practice_remaining = None  # from the last practice reply that said so
         self.http = httpx.Client(base_url=f"{base_url}/v1", headers=headers, timeout=timeout, transport=transport)
 
     def _pace(self):
-        with self._lock:
+        lock, slot = self._shared[0], self._shared
+        with lock:
             now = time.monotonic()
-            wait, self._next = self._next - now, max(now, self._next) + 1 / self.rate
+            wait, slot[1] = slot[1] - now, max(now, slot[1]) + 1 / self.rate
         if wait > 0:
             time.sleep(wait)
 
     def _call(self, method, path, body=None, params=None, raw=False):
         headers = {MOVE_ID_HEADER: uuid.uuid4().hex} if method == "POST" else {}
-        for attempt in range(self.retries + 1):
+        attempt = limited = 0
+        while True:
             self._pace()
             try:
                 r = self.http.request(method, path, json=body, params=params, headers=headers)
@@ -70,9 +83,14 @@ class ArenaClient:
             else:
                 wait = r.headers.get("Retry-After", "")
                 short = wait.isdigit() and int(wait) <= MAX_RETRY_AFTER_S
-                if r.status_code not in RETRY_STATUS or attempt == self.retries or (r.status_code == 429 and not short):
+                if r.status_code == 429 and short and limited < RATE_RETRIES:
+                    limited += 1  # the per-second limit: transient, the same move id makes the retry safe
+                    time.sleep(float(wait))
+                    continue
+                if r.status_code not in RETRY_STATUS or attempt == self.retries or r.status_code == 429:
                     break
             time.sleep(float(wait) if wait and wait.isdigit() else 0.5 * 2**attempt)
+            attempt += 1
         if (left := r.headers.get(REMAINING_HEADER, "")).isdigit():
             self.practice_remaining = int(left)
         if r.status_code >= 400:
