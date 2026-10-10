@@ -198,14 +198,19 @@ class Schedule:
         self.c_anchor = c_target - below * max(c_open - c_target, 0)
         self.ours = []  # the C of each sheet we sent, in order
 
-    def next_c(self, c_theirs, left):
+    def next_c(self, c_theirs, left, moved=False):
         """The C our next sheets cost: the anchor first, then a step toward their best sheet, never past it."""
         if not self.ours:
             return min(self.c_anchor, c_theirs)
         last = self.ours[-1]
         k = len(self.ours) - 1
-        steps = RFQ_STEPS if len(self.case.get("suppliers", [])) > 1 else STEPS
+        # slow steps in a tender (the rivals push) and with a supplier-health charge (the target is a cost optimum we
+        # sit on, not a floor to rush to: P01 settled at 132.70 with fast steps, 131.25 with slow ones)
+        slow = len(self.case.get("suppliers", [])) > 1 or eco.relationship_case(self.case)
+        steps = RFQ_STEPS if slow else STEPS
         share = LAST_ROUNDS_STEP if left <= 2 else steps[min(k, len(steps) - 1)]
+        if moved and left > 2 and slow:
+            share /= 2  # they came down last round: they move, we move less (fast ladders: patience is too short)
         return min(c_theirs, last + share * max(c_theirs - last, 0))
 
     def band_share(self):

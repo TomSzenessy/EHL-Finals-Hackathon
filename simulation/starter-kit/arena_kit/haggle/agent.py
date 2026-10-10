@@ -373,7 +373,8 @@ class Negotiator:
         if not sched.ours and target is not None and target < sched.c_target:
             # a tender: open from the cheapest target any bidder allows, not from this bidder's own opening price
             sched.c_anchor = min(sched.c_anchor, target - st.ANCHOR_BELOW * max(sched.c_open - target, 0))
-        goal = sched.next_c(now, left)
+        moved = self.their_moved(events, std)
+        goal = sched.next_c(now, left, moved)
         share = sched.band_share()
         # The band is for a single supplier and a plain price: in a tender the rivals set the pace (P05: banded
         # offers were agreed at once above a rival's price), and with a supplier-health charge C is U-shaped in price
@@ -399,9 +400,25 @@ class Negotiator:
         if self.price_held(events) and self.terms_trade(events, std):
             if min(m["c"] for m in self.trade_items) < rival:  # in a tender only if it would beat the cheapest rival
                 return "terms", None
-        if goal >= now - max(1.0, 0.0005 * now):
+        eps = max(1.0, 0.0005 * now)
+        if goal >= now - eps and moved and left > 1 and sched.ours:
+            goal = sched.ours[-1] + 0.3 * max(now - sched.ours[-1], 0)  # still moving: a small step, not a settle
+        if goal >= now - eps:
             return "settle", "Our schedule has reached their sheet."
         return "send", goal
+
+    def their_moved(self, events, std):
+        """Did the supplier's best sheet get cheaper for us in its last reply (by more than 0.1%)?"""
+        replies = [m for m in events if m.get("from") != "buyer" and m.get("term_sheets")]
+        if len(replies) < 2:
+            return False
+
+        def best(m):
+            ts = [x["terms"] for x in m["term_sheets"] if (x.get("terms") or {}).get("unit_price")]
+            return min((self.c(t, std) for t in ts), default=math.inf)
+
+        before, now = best(replies[-2]), best(replies[-1])
+        return math.isfinite(before) and now < before * 0.999
 
     def price_held(self, events):
         """Their last two counters carry the same price: they will not move on price ("management has frozen price
