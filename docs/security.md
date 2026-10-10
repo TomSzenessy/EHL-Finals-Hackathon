@@ -8,7 +8,8 @@ The verify job runs `repoctl ci gate` on the interpreter `setup-python` configur
 CI logic lives in tested repository code, not in workflow YAML: workflows
 check out the repository and call `make verify`, `make test-future`, or `repoctl ci <check>`
 (`tools/kit/ci.py`), and `make check` rejects long inline `run:` blocks. Pushes
-run CI on the default branch; pull requests run it for their commits.
+run CI on the default branch; pull requests run it for their commits. The verify job also installs one pinned tool from PyPI (`uv`, for the
+negotiation-workbench surface); a toolchain install is pinned to an exact version.
 
 Security is a property of the whole path, not a dependency scan. Start with a
 small threat model and make the safe path the default.
