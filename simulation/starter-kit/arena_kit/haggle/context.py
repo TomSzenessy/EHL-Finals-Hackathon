@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """What the agent knows about a supplier, from the data package alone.
 
 `dossier` is the supplier's record (shown on the Suppliers tab and injected into the model).
@@ -6,7 +7,9 @@ model only chooses which to use: a figure it writes itself could be wrong, and a
 
 import json
 import re
+import threading
 
+DB_LOCK = threading.RLock()  # one sqlite connection is shared by every supplier thread
 SUPPLIER_ID = re.compile(r"^sup:\d+$")
 SECTIONS = {
     "master": ("SELECT * FROM suppliers WHERE id = ?", 1),
@@ -62,7 +65,10 @@ SECTIONS = {
 
 
 def _rows(pkg, sql, *params, limit=50):
-    return pkg.query(sql, params, limit=limit) if pkg and pkg.db else []
+    if not (pkg and pkg.db):
+        return []
+    with DB_LOCK:
+        return pkg.query(sql, params, limit=limit)
 
 
 def dossier(pkg, sup, case=None):
@@ -102,7 +108,8 @@ def names(pkg, ids):
 
 def document(pkg, path, limit=3000):
     try:
-        return pkg.document(path)[:limit]
+        with DB_LOCK:  # the first lookup builds the id index from the database
+            return pkg.document(path)[:limit]
     except (OSError, ValueError, AttributeError):
         return ""
 
@@ -112,7 +119,139 @@ def _shift(month, n):
     return f"{y}-{m + 1:02d}"
 
 
-def claims(pkg, case, sup, dos):
+def index_change(facts, series, back, last):
+    """(change %, from-month) of an index over `back` months to `last`, if both months are citable."""
+    m1 = _shift(last, -back)
+    a, b = facts.get(f"idx:{series}@{m1}"), facts.get(f"idx:{series}@{last}")
+    return ((b["value"] / a["value"] - 1) * 100, m1) if a and b else None
+
+
+def _series(pkg, dos):
+    weights = {d["series_id"]: d["weight"] for d in dos["cost_drivers"]}
+    series = list(dict.fromkeys([*weights, *(c["series"] for c in dos["clauses"] if c.get("series"))]))
+    lasts = {}
+    for s in series:
+        row = _rows(pkg, "SELECT max(month) AS m FROM index_values WHERE series_id = ?", s, limit=1)
+        lasts[s] = row[0]["m"] if row else None
+    return weights, lasts
+
+
+SIGNALS = (
+    ("cash", re.compile(r"payment|liquid|cash|within \d+ days|Zahlung", re.I)),
+    ("capacity", re.compile(r"capacity|booked|backlog|utili[sz]ation|second shift|order book|allocat", re.I)),
+    ("distress", re.compile(r"restructur|loss-making|with its banks|insolven", re.I)),
+    (
+        "price rigidity",
+        re.compile(r"list price|discounts? (are )?not possible|head-office directive|no discount", re.I),
+    ),
+    ("material cover", re.compile(r"covered until|hedged|stock(ed)? until|material covered", re.I)),
+    ("notice", re.compile(r"notice period|days.? notice|notice of|Frist", re.I)),
+)
+SIGNAL_HINT = {
+    "cash": "cash is a currency here: faster payment can buy price",
+    "capacity": "free capacity means they need work (leverage); a full order book means they have it",
+    "distress": "a supplier under financial strain values cash and volume over margin",
+    "price rigidity": "the list price will not move: negotiate terms, dates, payment, clause",
+    "material cover": "index arguments only bite after the cover ends",
+    "notice": "check the notice period against the contract",
+}
+
+
+def signals(dos, texts):
+    """Sentences from the supplier's news, letters and notes that point at what moves it, with the id."""
+    out, seen = [], set()
+    sources = [(n["id"], n["body"] or "") for n in dos["news"]]
+    sources += [(d["id"], texts.get(d["file"], "")) for d in dos["documents"] if d.get("file")]
+    for ref, text in sources:
+        for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
+            for kind, rx in SIGNALS:
+                if rx.search(sentence) and (kind, sentence.strip()) not in seen and len(sentence.strip()) > 20:
+                    seen.add((kind, sentence.strip()))
+                    out.append(f"[{kind}] {ref}: {sentence.strip()[:240]} ({SIGNAL_HINT[kind]})")
+    return out[:14]
+
+
+def late_payments(pkg, sup):
+    """How we pay this supplier: a weakness in our hand and a lever (pay on time or early)."""
+    row = _rows(
+        pkg,
+        "SELECT count(*) AS n, sum(julianday(paid_date) > julianday(due_date)) AS late, "
+        "avg(julianday(paid_date) - julianday(due_date)) AS avg_days FROM invoices "
+        "WHERE supplier_id = ? AND paid_date IS NOT NULL",
+        sup,
+        limit=1,
+    )
+    if row and row[0]["n"] and row[0]["late"] and row[0]["avg_days"] > 0.5 and row[0]["late"] / row[0]["n"] > 0.3:
+        r = row[0]
+        return (
+            f"We pay them late: {r['late']} of {r['n']} invoices, {r['avg_days']:.1f} days after the due date on "
+            "average. That weakens any argument about reliability and is a lever: offer on-time or early payment "
+            "in return for price."
+        )
+    return None
+
+
+def analysis(pkg, case, dos, ask=None, texts=None):
+    """Numbers worth knowing before the first word: how big the ask is, what the index moves justify,
+    how past asks settled, how we pay, what the notes and news say. Computed, not argued."""
+    out, facts = [], pkg.facts if pkg else {}
+    b = case["buyer"]
+    if ask and b.get("current_unit_price"):
+        out.append(
+            f"Their ask is EUR {ask:.2f}, {(ask / b['current_unit_price'] - 1) * 100:+.1f}% on our current EUR "
+            f"{b['current_unit_price']:.2f}."
+        )
+    weights, lasts = _series(pkg, dos)
+    last_price = next((p["valid_from"][:7] for p in dos["prices"] if p["part_id"] in case.get("parts", [])), None)
+    windows = [("over 12 months", None)] + (
+        [(f"since our last price ({last_price})", last_price)] if last_price else []
+    )
+    for label, back in windows:
+        parts, implied = [], 0.0
+        for s_, w in weights.items():
+            if not lasts.get(s_):
+                continue
+            k = 12 if back is None else (int(lasts[s_][:4]) - int(back[:4])) * 12 + int(lasts[s_][5:]) - int(back[5:])
+            got = index_change(facts, s_, k, lasts[s_]) if 0 < k <= 12 else None
+            if got:
+                implied += w * got[0]
+                parts.append(f"{s_} {got[0]:+.1f}% x {w:.0%}")
+        if parts:
+            out.append(
+                f"Index-implied cost change on their cost base {label}: about {implied:+.1f}% ({', '.join(parts)}). "
+                "If that is above their ask, do not dispute the cost rise: win on terms, timing, risk and volume."
+            )
+    asks = [r for r in dos["history"] if r.get("asked_pct") is not None and r.get("settled_pct") is not None]
+    if asks:
+        out.append(
+            f"In {len(asks)} past renewals they asked for {sum(r['asked_pct'] for r in asks) / len(asks):+.1f}% on "
+            f"average and settled at {sum(r['settled_pct'] for r in asks) / len(asks):+.1f}%."
+        )
+    notes = [r["note"] for r in dos["history"] if r.get("note")]
+    if notes:
+        out.append("Notes on past negotiations: " + "; ".join(dict.fromkeys(notes)))
+    sc = next((r for r in dos["should_cost"] if r["part_id"] in case.get("parts", [])), None)
+    if sc and ask:
+        out.append(
+            f"Our bottom-up cost estimate for them is EUR {sc['unit_cost']:.2f} before margin (confidence "
+            f"+/-{sc['confidence_pct']}%); their ask is {(ask / sc['unit_cost'] - 1) * 100:+.1f}% on it."
+        )
+    if late := late_payments(pkg, dos["supplier_id"]):
+        out.append(late)
+    for c in dos["contracts"]:
+        out.append(
+            f"Contract {c['id']} ({c['price_basis']}), valid {c['valid_from']} to {c['valid_to']}, "
+            f"{c['notice_days']} days notice for price changes."
+        )
+    out += signals(dos, texts or {})
+    if (b.get("alternative") or {}).get("kind") in (None, "none"):
+        out.append("We have no alternative without a deal: never let that show.")
+    if b.get("must_haves"):
+        out.append(f"Must-haves (breaking one scores zero): {json.dumps(b['must_haves'])}")
+    return out
+
+
+def claims(pkg, case, sup, dos, ask=None):
     """Candidate arguments, each {id, kind, refs, text, helps, note}. `text` is the sentence the arena
     checks: its figure is computed here from the same facts the arena uses."""
     if not pkg:
@@ -126,26 +265,42 @@ def claims(pkg, case, sup, dos):
                 {"id": f"c{len(out) + 1}", "kind": kind, "refs": refs, "text": text, "helps": helps, "note": note}
             )
 
-    # index moves behind the part's cost (cost drivers and the contract's own index clause)
-    weights = {d["series_id"]: d["weight"] for d in dos["cost_drivers"]}
-    series = list(dict.fromkeys([*weights, *(c["series"] for c in dos["clauses"] if c.get("series"))]))
-    for s in series:
-        row = _rows(pkg, "SELECT max(month) AS m FROM index_values WHERE series_id = ?", s, limit=1)
-        last = row[0]["m"] if row else None
-        info = (_rows(pkg, "SELECT name FROM index_series WHERE id = ?", s, limit=1) or [{"name": s}])[0]["name"]
-        for back in (12, 6):
-            m1 = _shift(last, -back) if last else None
-            a, b = facts.get(f"idx:{s}@{m1}"), facts.get(f"idx:{s}@{last}")
-            if a and b:
-                chg = (b["value"] / a["value"] - 1) * 100
+    # index moves behind the part's cost: the 12-month figure the supplier cites, and the window that
+    # reads best for us (shorter windows often show a turn the 12-month figure hides)
+    weights, lasts = _series(pkg, dos)
+    for s, last in lasts.items():
+        if not last:
+            continue
+        name = (_rows(pkg, "SELECT name FROM index_series WHERE id = ?", s, limit=1) or [{"name": s}])[0]["name"]
+        windows = {k: g for k in range(1, 13) if (g := index_change(facts, s, k, last))}
+        picks = {12: windows.get(12)}
+        if windows:
+            k = min(windows, key=lambda k: windows[k][0])
+            picks[k] = windows[k]
+        for back, got in picks.items():
+            if got:
+                chg, m1 = got
                 share = f"; about {weights[s]:.0%} of the part's cost" if s in weights else ""
                 add(
                     "index",
                     [f"idx:{s}@{m1}", f"idx:{s}@{last}"],
-                    f"{info} changed {chg:+.1f}% from {m1} to {last} (idx:{s}@{m1}, idx:{s}@{last}).",
+                    f"{name} changed {chg:+.1f}% from {m1} to {last} (idx:{s}@{m1}, idx:{s}@{last}).",
                     "buyer" if chg <= 0.5 else "supplier",
-                    f"{back}-month window{share}",
+                    f"{back}-month window{share}; windows end on the same id: use one. Use (if it helps us): their input costs rose "
+                    f"less than their ask implies, so the pass-through should be smaller",
                 )
+    for d in dos["documents"]:  # a price letter that gives less notice than the contract demands
+        letter, contract = facts.get(d["id"]), next((c for c in dos["contracts"] if c["id"] in facts), None)
+        if letter and contract and letter.get("days") and facts[contract["id"]].get("days"):
+            short = letter["days"] < facts[contract["id"]]["days"]
+            add(
+                "notice",
+                [d["id"], contract["id"]],
+                f"Your letter {d['id']} gives {letter['days']} days of notice; the contract {contract['id']} "
+                f"requires {facts[contract['id']]['days']} days.",
+                "buyer" if short else "supplier",
+                "strongest argument when it helps us: the increase cannot apply before the contractual notice has run; ask for the later effective date",
+            )
     for part in parts:  # our order history with this supplier
         po = _rows(
             pkg,
@@ -158,25 +313,28 @@ def claims(pkg, case, sup, dos):
         po = [r for r in po if r["id"] in facts]
         if len(po) >= 2:
             ps = [r["p"] for r in po]
+            span = (
+                f"all at EUR {min(ps):.2f}"
+                if abs(max(ps) - min(ps)) < 0.005
+                else f"at EUR {min(ps):.2f} to EUR {max(ps):.2f}"
+            )
             add(
                 "orders",
                 [r["id"] for r in po],
-                f"Our last {len(po)} orders of {part} with you ({', '.join(r['id'] for r in po)}) were placed at "
-                f"EUR {min(ps):.2f} to EUR {max(ps):.2f} per unit.",
+                f"Our last {len(po)} orders of {part} with you ({', '.join(r['id'] for r in po)}) were placed {span} per unit.",
                 "buyer",
-                "order price history",
+                "use: a long, stable price record: a fixed-price year is consistent with it and fair to both",
             )
         num = part.split(":")[1]
         if f"cost:{num}" in facts and facts[f"cost:{num}"].get("unit_cost"):
             f = facts[f"cost:{num}"]
+            ref = ask or case.get("buyer", {}).get("current_unit_price") or 0
             add(
                 "should-cost",
                 [f"cost:{num}"],
                 f"Our bottom-up estimate of your unit cost for {part} is EUR {f['unit_cost']:.2f} "
                 f"(cost:{num}), before any margin.",
-                "buyer"
-                if f["unit_cost"] < (case.get("buyer", {}).get("current_unit_price") or 0) * 0.97
-                else "supplier",
+                "buyer" if f["unit_cost"] < ref * 0.97 else "supplier",
                 f"estimate confidence +/-{f.get('confidence_pct')}%",
             )
         fc = sorted((k for k in facts if k.startswith(f"fc:{num}@")), reverse=True)
@@ -186,7 +344,7 @@ def claims(pkg, case, sup, dos):
                 [fc[0]],
                 f"Our volume forecast for {part} changed by {f['change_pct']:+.1f}% ({fc[0]}).",
                 "buyer" if f["change_pct"] > 0 else "supplier",
-                "volume outlook",
+                "weak alone: we do not commit volume; pair it with the committed annual quantity or a longer term",
             )
     sc = [r for r in dos["scorecards"][:4] if r["id"] in facts]
     if len(sc) >= 2:
@@ -197,14 +355,14 @@ def claims(pkg, case, sup, dos):
             [r["id"] for r in sc],
             f"Your mean on-time delivery over {len(sc)} quarters ({ids}) was {otd:.1f}%.",
             "buyer" if otd < 95 else "supplier",
-            "shares sc: ids with the quality claim: use one of the two",
+            "use: a reliability gap whose cost we carry; price must reflect it. Shares sc: ids with the quality claim: use one of the two",
         )
         add(
             "quality",
             [r["id"] for r in sc],
             f"Your mean quality over {len(sc)} quarters ({ids}) was {ppm:.0f} ppm.",
             "buyer" if ppm > 300 else "supplier",
-            "shares sc: ids with the delivery claim: use one of the two",
+            "use: a quality record whose cost we carry; price must reflect it. Shares sc: ids with the delivery claim: use one of the two",
         )
     for ref in case.get("refs", []):  # a competing quote the case hands us
         f = facts.get(ref) if ref.startswith("quote:") else None
@@ -213,13 +371,13 @@ def claims(pkg, case, sup, dos):
                 "competing quote",
                 [ref],
                 f"A competing quote for {f['part']} is EUR {f['unit_price']:.2f} ({ref}).",
-                "buyer",
-                "reveals the rival quote to this supplier",
+                "buyer" if not ask or f["unit_price"] < ask else "supplier",
+                "use only if below their price: it reveals the rival quote",
             )
     return out
 
 
-def injection(case, dos, cands, letter="", texts=None):
+def injection(case, dos, cands, letter="", texts=None, notes=()):
     """The supplier context the model is given once, before the first round."""
 
     def block(title, data):
@@ -262,6 +420,8 @@ def injection(case, dos, cands, letter="", texts=None):
     ):
         if dos.get(name):
             parts.append(block(name, dos[name]))
+    if notes:
+        parts.append("## PRICE ANALYSIS (computed from the data)\n" + "\n".join(f"- {n}" for n in notes) + "\n")
     if letter:
         parts.append(f"## The letter that started this\n{letter}\n")
     for path, text in (texts or {}).items():

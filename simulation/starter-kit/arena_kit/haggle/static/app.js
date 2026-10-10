@@ -8,8 +8,12 @@ const store = {
 const S = { mode: store.get("mode", "online"), tab: store.get("tab", "negotiate"), runs: [], runId: null, meta: null,
             events: [], cfg: {}, cases: null, error: "", supplier: null, filter: "all", timer: null, open: new Set(), drawn: "" };
 
-async function api(path, opts) {
-  const r = await fetch(path, opts && { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(opts) });
+// tabs that show the running negotiation redraw as it progresses; the others (team, suppliers, settings) must not:
+// redrawing would refetch from the arena and wipe what is being typed
+const LIVE = new Set(["negotiate", "raw", "formatted"]);
+
+async function api(path, opts, method = "POST") {
+  const r = await fetch(path, opts && { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(opts) });
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.detail || `HTTP ${r.status}`);
   return body;
@@ -51,7 +55,7 @@ function paintChrome() {
 function render() {
   paintChrome();
   if (S.tab !== "raw") delete $("#view").dataset.raw;
-  ({ negotiate: viewNegotiate, raw: viewRaw, formatted: viewFormatted, suppliers: viewSuppliers })[S.tab]();
+  ({ negotiate: viewNegotiate, raw: viewRaw, formatted: viewFormatted, suppliers: viewSuppliers, team: viewTeam, settings: viewSettings })[S.tab]();
 }
 const setTab = (t) => { S.tab = t; store.set("tab", t); render(); };
 
@@ -75,7 +79,7 @@ async function pull() {
   if (i >= 0) S.runs[i] = r.meta;
   clearTimeout(S.timer);
   if (["starting", "running"].includes(r.meta.status)) {
-    S.timer = setTimeout(async () => { await pull().catch(() => {}); render(); }, 1500);
+    S.timer = setTimeout(async () => { await pull().catch(() => {}); if (LIVE.has(S.tab)) render(); else paintChrome(); }, 1500);
   }
 }
 
@@ -270,6 +274,59 @@ function paintDossier(d) {
     try { det.querySelector("pre").textContent = (await api(`/api/document?path=${encodeURIComponent(det.dataset.path)}`)).text; }
     catch (e) { det.querySelector("pre").textContent = e.message; }
   }));
+}
+
+// ---- team ------------------------------------------------------------------------------------
+const ago = (t) => new Date(t * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+async function viewTeam() {
+  const v = $("#view");
+  v.innerHTML = `<p class="muted">Asking the arena…</p>`;
+  let t;
+  try { t = await api(`/api/team?mode=${S.mode}`); } catch (e) { v.innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
+  if (S.tab !== "team") return;
+  const part = (title, x, ok) => `<h2>${title}</h2>${x?.error ? `<p class="err">${esc(x.error)}</p>` : ok(x)}`;
+  const me = t.me?.error ? null : t.me;
+  const rec = t.recorded || {};
+  const sessions = (rows) => (rows?.length ? table(rows.map((r) => ({ when: ago(r.created_at), case: r.case_id, status: r.status,
+    "end reason": r.end_reason, deal: r.deal ? "yes" : "no", score: r.score == null ? "" : r.score.toFixed(2), rounds: r.rounds,
+    session: r.session_id, "recorded here": rec[r.session_id] ? "yes" : "" }))) : `<p class="muted">None yet.</p>`);
+  v.innerHTML = `<p class="muted">What the ${esc(S.mode)} arena's API says about us, read now. Scores here are the arena's own.</p>
+    ${part("Team and quota", t.me, (m) => `<div class="card">${kv({ team: m.team_name, status: m.status,
+      "practice sessions used": `${m.practice?.used} of ${m.practice?.limit} (${m.practice?.left} left)`, "next one frees up": m.practice?.resets_at })}
+      <h3>Best score per case</h3>${m.best && Object.keys(m.best).length ? table(Object.entries(m.best).map(([k, x]) => ({ case: k.replace("case:", ""), best: x.toFixed(2) }))) : `<p class="muted">No scored session yet.</p>`}</div>`)}
+    ${part("Practice leaderboard", t.leaderboard, (b) => table((b.teams || b.rows || []).map((r) => ({ rank: r.rank, team: r.team_name,
+      total: r.total, played: r.played, deals: r.deals, rounds: r.rounds, "": r.team_name === me?.team_name ? "← us" : "" }))))}
+    ${part("Our practice sessions", t.sessions, sessions)}${part("Our sandbox sessions", t.sandbox_sessions, sessions)}
+    ${part("Data downloads", t.downloads, (d) => kv(Object.fromEntries(Object.entries(d).map(([k, x]) => [k, JSON.stringify(x)]))))}
+    ${part("Arena health", t.health, (h) => kv(h))}`;
+}
+
+// ---- settings --------------------------------------------------------------------------------
+async function viewSettings() {
+  const v = $("#view");
+  let c;
+  try { c = await api("/api/settings"); } catch (e) { v.innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
+  if (S.tab !== "settings") return;
+  const f = (id, label, val, type = "text", hint = "") => `<label class="field"><span>${label}</span><input id="${id}" type="${type}" value="${esc(val)}" ${type === "password" ? 'autocomplete="off"' : ""}><small class="muted">${hint}</small></label>`;
+  v.innerHTML = `<h2 style="margin-top:0">Model</h2><div class="card form">
+      <label class="field"><span>Provider</span><select id="provider"><option value="openai" ${c.provider === "openai" ? "selected" : ""}>OpenAI-compatible</option><option value="anthropic" ${c.provider === "anthropic" ? "selected" : ""}>Anthropic</option></select><small class="muted">Any OpenAI-compatible endpoint, or Anthropic.</small></label>
+      ${f("model", "Model", c.model)}${f("base_url", "Base URL", c.base_url, "text", "OpenAI-compatible only")}${f("endpoint", "Endpoint", c.endpoint, "text", "appended to the base URL")}
+      ${f("timeout", "Timeout (s) per call", c.timeout, "number", "The arena allows 60 s per reply: slower answers become a plain fallback counter.")}
+      ${f("api_key", "API key", "", "password", c.has_key ? "A key is set. Leave empty to keep it; it is never shown again." : "No key set yet. Stored only in haggle_settings.json (git-ignored).")}
+      <div class="tools"><button class="btn" id="save">Save</button><button class="btn ghost" id="test">Test the model</button><span id="msg" class="muted"></span></div></div>
+    <h2>System prompt</h2><div class="card form">
+      <p class="muted">Source: <b>${esc(c.prompt_source)}</b> · ${esc(c.prompt_sha)}${c.prompt_is_default ? " · the built-in default" : ""}. It must keep the JSON answer format and the [[cN]] claim markers or the agent cannot act on it. Every run records the prompt hash and the full text.</p>
+      ${f("prompt_file", "Prompt file", c.prompt_file, "text", "Saved here (tracked in git, so versions are shared). Delete or reset to use the built-in prompt.")}
+      <textarea id="prompt" rows="22" spellcheck="false">${esc(c.prompt)}</textarea>
+      <div class="tools"><button class="btn" id="saveprompt">Save prompt</button><button class="btn ghost" id="reset">Reset to built-in</button></div></div>`;
+  const val = (id) => $("#" + id).value;
+  const note = (t) => { $("#msg").textContent = t; };
+  const model = () => ({ provider: val("provider"), model: val("model"), base_url: val("base_url"), endpoint: val("endpoint"), timeout: val("timeout"), api_key: val("api_key"), prompt_file: val("prompt_file") });
+  const run = async (body, done) => { try { await api("/api/settings", body, "PUT"); note(done); S.cfg = await api("/api/config"); await viewSettings(); $("#msg").textContent = done; } catch (e) { note(e.message); } };
+  $("#save").onclick = () => run(model(), "Saved.");
+  $("#saveprompt").onclick = () => run({ ...model(), prompt: val("prompt") }, "Prompt saved.");
+  $("#reset").onclick = () => run({ ...model(), reset_prompt: true }, "Back to the built-in prompt.");
+  $("#test").onclick = async () => { note("Calling the model…"); try { const r = await api("/api/settings/test", {}); note(r.ok ? `Works: "${r.detail}"` : `Failed: ${r.detail}`); } catch (e) { note(e.message); } };
 }
 
 // ---- boot ------------------------------------------------------------------------------------

@@ -14,10 +14,12 @@ from fastapi.staticfiles import StaticFiles
 from arena_kit.client import ArenaError
 from arena_kit.data import DataPackage
 
+from .agent import SYSTEM
 from .arena import MODES, Arenas
 from .context import SUPPLIER_ID, dossier, names
-from .llm import LLM
+from .llm import LLM, LLMError
 from .run import Run
+from .settings import Settings, sha
 
 STATIC = Path(__file__).parent / "static"
 RUN_ID = re.compile(r"^[\w-]{1,60}$")
@@ -39,9 +41,16 @@ def read_run(path):
     return meta, events
 
 
-def create_app(pkg: DataPackage | None = None, arenas: Arenas | None = None, llm: LLM | None = None, folder=None):
+def create_app(
+    pkg: DataPackage | None = None,
+    arenas: Arenas | None = None,
+    llm: LLM | None = None,
+    folder=None,
+    settings: Settings | None = None,
+):
     arenas = arenas or Arenas(pkg.facts if pkg else {})
-    llm = llm or LLM()
+    settings = settings or Settings()
+    current = lambda: llm or settings.llm()  # noqa: E731  (an explicit llm, used by tests, wins over the settings)
     live: dict[str, Run] = {}
     lock = threading.Lock()
     app = FastAPI(title="haggle", docs_url=None, redoc_url=None, openapi_url=None)
@@ -63,8 +72,8 @@ def create_app(pkg: DataPackage | None = None, arenas: Arenas | None = None, llm
     @app.get("/api/config")
     def config():
         return {
-            "model": llm.model,
-            "llm_configured": llm.configured,
+            "model": current().model,
+            "llm_configured": current().configured,
             "data": pkg is not None,
             "online_key": bool(os.environ.get("ARENA_API_KEY")),
         }
@@ -89,9 +98,11 @@ def create_app(pkg: DataPackage | None = None, arenas: Arenas | None = None, llm
 
     @app.post("/api/runs")
     def start(body: dict):
-        if not llm.configured:
-            raise ArenaError(400, "Set LLM_MODEL and LLM_API_KEY in .env, then restart.")
-        run = Run(check_mode(body.get("mode")), body.get("case_id", ""), where(), arenas, pkg, llm)
+        model = current()
+        if not model.configured:
+            raise ArenaError(400, "Set the model and its API key on the Settings tab (or in .env).")
+        text, source = settings.prompt()
+        run = Run(check_mode(body.get("mode")), body.get("case_id", ""), where(), arenas, pkg, model, text, source)
         with lock:
             live[run.id] = run
         threading.Thread(target=run.execute, daemon=True).start()
@@ -130,6 +141,59 @@ def create_app(pkg: DataPackage | None = None, arenas: Arenas | None = None, llm
             raise ArenaError(404, "no such run")
         meta, events = read_run(path)
         return {"meta": meta, "total": len(events), "events": events[after:]}
+
+    @app.get("/api/settings")
+    def get_settings():
+        text, source = settings.prompt()
+        return {
+            **settings.view(),
+            "prompt": text,
+            "prompt_source": source,
+            "prompt_sha": sha(text),
+            "default_prompt": SYSTEM,
+            "prompt_is_default": text == SYSTEM,
+        }
+
+    @app.put("/api/settings")
+    def put_settings(body: dict):
+        settings.update(body)
+        if body.get("reset_prompt"):
+            settings.reset_prompt()
+        elif isinstance(body.get("prompt"), str) and body["prompt"].strip():
+            settings.save_prompt(body["prompt"])
+        return get_settings()
+
+    @app.post("/api/settings/test")
+    def test_model():
+        try:
+            reply = settings.llm().chat(
+                "You are a connection test.", [{"role": "user", "content": "Reply with: OK"}], timeout=25
+            )
+        except LLMError as exc:
+            return {"ok": False, "detail": str(exc)}
+        return {"ok": True, "detail": reply.strip()[:80]}
+
+    @app.get("/api/team")
+    def team(mode: str = "online"):
+        """What the arena says about us: team, quota, best scores, practice board, every session, downloads."""
+        client, out = arenas.client(check_mode(mode)), {}
+
+        def grab(name, call):
+            try:
+                out[name] = call()
+            except Exception as exc:  # one failing endpoint must not hide the others
+                out[name] = {"error": str(getattr(exc, "detail", exc))[:300]}
+
+        grab("me", client.me)
+        grab("leaderboard", lambda: client.leaderboard("practice"))
+        grab("sessions", lambda: client.sessions("practice"))
+        grab("sandbox_sessions", lambda: client.sessions("sandbox"))
+        grab("downloads", client.downloads)
+        base = str(client.http.base_url).removesuffix("/v1/")
+        grab("health", lambda: client.http.get(f"{base}/health").json())
+        client.http.close()
+        out["recorded"] = {m["session_id"]: m["run_id"] for m in metas() if m.get("session_id")}
+        return out
 
     @app.get("/api/suppliers")
     def suppliers():

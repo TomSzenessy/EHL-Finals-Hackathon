@@ -63,3 +63,9 @@ td.wrap { min-width: 220px; }
 @media (prefers-reduced-motion: no-preference) { .chip.running { animation: pulse 1.6s infinite; } @keyframes pulse { 50% { opacity: .45; } } }
 .sups { display: flex; flex-wrap: wrap; gap: 6px; }
 .sups .btn.ghost { padding: 3px 10px; font-size: 14px; text-align: left; }
+.form { display: flex; flex-direction: column; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.field span { font-weight: 600; }
+input[type=text], input[type=password], input[type=number], textarea, .field select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; width: 100%; max-width: 640px; }
+textarea { font: 13px/1.5 ui-monospace, Menlo, monospace; max-width: none; resize: vertical; }
+.field small { font-size: 12.5px; }

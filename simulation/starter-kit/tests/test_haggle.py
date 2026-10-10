@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """The haggling agent and its recorder, against arena-sim in this process with a scripted model."""
 
 import json
@@ -90,3 +91,116 @@ def test_online_needs_a_key(pkg, tmp_path, monkeypatch):
     monkeypatch.delenv("ARENA_API_KEY", raising=False)
     client = TestClient(create_app(pkg, Arenas(pkg.facts), ScriptedLLM(), folder=tmp_path))
     assert client.get("/api/cases?mode=online").status_code == 400
+
+
+# -- the pricing model and the guards, on the numbers of hosted case P02 ----------------------------
+CLAUSE = {"series": "CU-NOTATION", "material_share": 0.2, "deadband_pct": 5, "base_month": "2026-08"}
+P02 = {
+    "case_id": "case:P02", "parts": ["part:350011"], "suppliers": ["sup:70510"], "refs": [], "title": "P02",
+    "negotiable": ["unit_price", "payment_days", "index_clause"], "round_limit": 10,
+    "fixed_terms": {"lead_time_days": 35, "volume_per_year": 6110, "contract_months": 12,
+                    "effective_date": "2027-01-01", "incoterm": "DAP", "tooling_eur": 0},
+    "term_options": {"payment_days": [14, 30, 45, 60, 90], "index_clause": [None, CLAUSE]},
+    "buyer": {"need_per_year": 6110, "horizon_years": 1.0, "current_unit_price": 348.32, "fallback_unit_price": 376.19,
+              "interest_rate": 0.08, "reference_payment_days": 60, "need_lead_time_days": 36, "category_goal": "stabilise",
+              "fallback_risk_pct": 10, "index_risk_pct": 4, "late_cost_per_day": 720, "cost_per_defect": 780,
+              "sustainable_margin_pct": 0.5, "relationship_eur_per_point": 31920,
+              "freight_eur_per_unit": {"EXW": 2.99, "FCA": 2.6, "DAP": 0.0}, "index_paths": {"CU-NOTATION": 0.05},
+                "must_haves": [], "alternative": {"kind": "none", "terms": {}}},
+}  # fmt: skip
+PDF_STANDARD = {"ppm_commitment": 250, "chargeback_eur_per_complaint": 0.0}
+
+
+def test_pricing_model_reproduces_the_arena_on_p02(pkg):
+    from arena_kit.haggle import economics as eco
+
+    dos = dossier(pkg, "sup:70510", P02)
+    std = eco.full_standard(dos, PDF_STANDARD)
+    assert std["payment_days"] == 30 and std["incoterm"] == "DAP"  # the PDF alone lacks the cash terms
+    est = eco.estimate(P02, dos, std, ask=370.96)
+    deal = {"unit_price": 349.0, "payment_days": 30, "index_clause": CLAUSE}
+    assert eco.cost(P02, deal, std, est) == pytest.approx(2_271_134, rel=0.005)  # the arena's c_deal of a real run
+    best = eco.plan(P02, std, est, 370.96)
+    assert best["modelled"] and best["target"]["c"] == pytest.approx(2_235_514, rel=0.005)  # the arena's c_best
+    assert best["target"]["terms"]["index_clause"] is None  # a clause only costs us here
+    assert 350 < best["target"]["terms"]["unit_price"] < 365  # lower is not better in a stabilise case
+
+
+def _negotiator(pkg, llm=None):
+    from arena_kit.haggle.agent import Negotiator
+
+    neg = Negotiator(P02, "sup:70510", llm or ScriptedLLM(), pkg, "context", [], lambda r: None)
+    neg.dossier = dossier(pkg, "sup:70510", P02)
+    return neg
+
+
+def _thread(status="open", price=370.96):
+    pdf = "Our standard terms (apply to everything not stated above)\nQuality commitment (ppm) 250\n"
+    return [{"from": "sales@70510", "status": status, "subject": "Re: P02", "body": "Our offer.",
+             "term_sheets": [{"term_sheet_id": "offer:70510-0", "terms": {"unit_price": price, "payment_days": 30, "index_clause": None}}],
+             "attachments": [{"name": "quote-offer.pdf", "text": pdf}], "signals": {"reply_delay_days": 1}}]  # fmt: skip
+
+
+def test_a_counter_far_below_their_price_is_refused_as_an_insult(pkg):
+    from arena_kit.haggle.agent import Feedback
+
+    neg, events = _negotiator(pkg), _thread()
+    std = __import__("arena_kit.haggle.economics", fromlist=["x"]).full_standard(neg.dossier, {})
+    neg.prepare(events, std)
+    ask = {
+        "action": "send",
+        "body": "Hello",
+        "term_sheets": [{"unit_price": 216, "payment_days": 90, "index_clause": None}],
+    }
+    with pytest.raises(Feedback, match="insult"):
+        neg.build(ask, events, {}, {}, std)
+    fair = {**ask, "term_sheets": [{"unit_price": 345, "payment_days": 30, "index_clause": None}]}
+    assert neg.build(fair, events, {}, {}, std)[0] == "send"
+
+
+def test_it_does_not_settle_early_but_takes_a_final_offer_without_asking(pkg):
+    from arena_kit.haggle import economics as eco
+    from arena_kit.haggle.agent import Feedback
+
+    neg = _negotiator(pkg)
+    std = eco.full_standard(neg.dossier, {})
+    events = _thread("open")
+    neg.prepare(events, std)
+    with pytest.raises(Feedback, match="cannot settle"):
+        neg.build({"action": "settle"}, events, {}, {}, std)  # their sheet is far above our best reachable C
+    # "final offer, please decide": the model is not even asked; any further message could end the deal
+    neg.llm.calls.clear()
+    kind, message, meta = neg.step(_thread("final_offer", price=365.0))
+    assert kind == "settle" and message is None and not neg.llm.calls
+
+
+def test_settings_change_the_model_and_the_prompt_file(pkg, tmp_path, monkeypatch):
+    from arena_kit.haggle.settings import Settings
+
+    monkeypatch.chdir(tmp_path)
+    for name in ("LLM_MODEL", "LLM_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    client = TestClient(
+        create_app(pkg, Arenas(pkg.facts), folder=tmp_path / "runs", settings=Settings(tmp_path / "s.json"))
+    )
+    first = client.get("/api/settings").json()
+    assert first["prompt_is_default"] and not first["configured"]
+    saved = client.put(
+        "/api/settings", json={"model": "m-1", "api_key": "secret-key", "prompt": "My prompt text"}
+    ).json()
+    assert saved["model"] == "m-1" and saved["has_key"] and saved["configured"]
+    assert "secret-key" not in json.dumps(saved)  # the key is write-only
+    assert saved["prompt"] == "My prompt text" and (tmp_path / "prompts" / "system.md").exists()
+    assert client.get("/api/config").json()["model"] == "m-1"
+    reset = client.put("/api/settings", json={"reset_prompt": True}).json()
+    assert reset["prompt_is_default"]
+
+
+def test_an_rfq_with_two_suppliers_runs_both_threads_and_closes_cleanly(pkg, tmp_path):
+    client = TestClient(create_app(pkg, Arenas(pkg.facts), ScriptedLLM(), folder=tmp_path))
+    started = client.post("/api/runs", json={"mode": "offline", "case_id": "case:S02"}).json()
+    body = wait(client, started["run_id"], timeout=90)
+    assert body["meta"]["status"] == "done"
+    assert not [e for e in body["events"] if e["kind"] == "error"], [e for e in body["events"] if e["kind"] == "error"]
+    suppliers = {e["supplier"] for e in body["events"] if e["kind"] == "decision" and e.get("round")}
+    assert len(suppliers) == 2  # one agent per supplier thread, run in parallel
