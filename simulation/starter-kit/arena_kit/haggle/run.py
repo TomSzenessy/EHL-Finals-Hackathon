@@ -181,6 +181,7 @@ class Run:
         self.last_call = {}  # RFQ: supplier -> rounds left after the cheapest bidder agreed
         self.active, self.dormant = set(live_threads(threads)), set()
         workers = [threading.Thread(target=self._thread, args=(table, case, threads, s)) for s in live_threads(threads)]
+        self.ready = threading.Barrier(len(workers)) if len(workers) > 1 else None
         for w in workers:
             w.start()
         for w in workers:
@@ -224,6 +225,16 @@ class Run:
             neg.dossier = dos
             self.negs[sup] = neg
             events = threads[sup]
+            if self.ready is not None:
+                # A tender: every bidder's target is known before anyone opens, so each first sheet starts from the
+                # cheapest target any bidder allows. Without this the first thread to decide anchored on its own
+                # price (P05: 35.28 to one bidder, 28.93 to the same bidder in another run).
+                neg.prepare(events, eco.full_standard(dos, standard_terms(events)))
+                neg.target_c()
+                try:
+                    self.ready.wait(timeout=30)
+                except threading.BrokenBarrierError:
+                    pass
             while self.result is None and sup in live_threads(threads) and moves_left(case, events) > 0:
                 t0 = time.monotonic()
                 rnd = sum(m.get("from") == "buyer" for m in events) + 1

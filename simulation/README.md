@@ -49,7 +49,8 @@ key, no quota; it only teaches the API, not the real suppliers).
 4. `agreed` and `final_offer` are accepted at once: a supplier never goes below a sheet it agreed to, and every
    push after a final offer ended in a walk-away. The case closes on the cheapest standing sheet that beats your
    alternative. In an RFQ every call of the session is queued through one gate (the arena answers one at a time),
-   only the two cheapest bidders keep negotiating after round 1, and once the cheapest bidder agrees the other
+   every bidder's opening is priced before anyone is answered (so all first offers start from the cheapest
+   target any bidder allows), only the two cheapest bidders keep negotiating after round 1, and once the cheapest bidder agrees the other
    gets two last rounds against its price.
 
 An infeasible target menu triggers a guarded counter rather than acceptance of an opening quote. In an RFQ,

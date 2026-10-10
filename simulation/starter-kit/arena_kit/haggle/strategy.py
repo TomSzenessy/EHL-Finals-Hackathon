@@ -40,7 +40,7 @@ LAST_ROUNDS_STEP = 0.30  # with two messages or fewer left we close the gap fast
 FINAL_PROBE_SHARE = 0.35  # a test of a "final offer": ask for this share of the gap to our last sheet
 PROBE_IF_CAPTURED_BELOW = 0.6  # ...only if we hold less than this share of the reachable room
 MENU_SIZE = 8
-LOWEST_SHARE = 0.78  # never offer below this share of the supplier's price
+LOWEST_SHARE = float(os.environ.get("HAGGLE_LOWEST_SHARE", "0.78"))  # never offer below this share of their price
 
 
 def price_for(case, base, c_goal, std, est, lo, hi, tol=0.0015):
@@ -153,7 +153,29 @@ def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE):
             kinds.update(m["tags"])
     for i, m in enumerate(out):
         m["key"] = "ABCDEFGHIJ"[i]
+    if not out and math.isfinite(c_goal) and c_goal > 0:
+        # The goal lies below what any structure reaches inside the allowed price range (a deep anchor): offer the
+        # cheapest reachable cost instead of nothing. An empty menu used to end in a counter on the supplier's own
+        # 12-month structure, which it agreed to (P18: 5.98 for a 12-month contract, score 0.04).
+        reach = reachable_c(case, std, est, ref_price)
+        if math.isfinite(reach) and reach > c_goal:
+            return menu(case, reach * 1.0002, std, est, ref_price, their, size)
     return out
+
+
+def reachable_c(case, std, est, ref_price):
+    """The lowest C any allowed structure reaches at a price inside the menu's range (LOWEST_SHARE of the
+    supplier's price up to its ask)."""
+    best = math.inf
+    for base in structures(case):
+        base = {**base, **free_for_them(case, std, base)}
+        if not must_haves_ok(case, complete_offer(case, {**base, "unit_price": ref_price}), std):
+            continue
+        lo = ref_price * LOWEST_SHARE
+        for k in range(41):  # C can be U-shaped in price (supplier-health charge): scan, do not assume the bottom
+            p = round(lo + (ref_price - lo) * k / 40, 2)
+            best = min(best, eco.cost(case, complete_offer(case, {**base, "unit_price": p}), std, est))
+    return best
 
 
 def free_for_them(case, std, base):

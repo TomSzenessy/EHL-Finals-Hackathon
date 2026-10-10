@@ -336,3 +336,36 @@ def test_open_rfq_leader_does_not_close_while_rival_is_active(tmp_path):
     threads["a"][-1]["status"] = "final_offer"
     run._settled(None, {"suppliers": ["a", "b"]}, threads, "a")
     assert closed  # a firm offer still closes before it can expire
+
+
+def test_a_goal_below_reach_still_gets_a_menu(pkg):
+    """A deep anchor lies below every structure's lowest allowed price: the menu offers the cheapest reachable
+    packages instead of nothing (an empty menu once ended in a counter on the supplier's own 12-month sheet)."""
+    from arena_kit.haggle import strategy as st
+
+    neg, events = _negotiator(pkg), _thread()
+    std = _std(neg)
+    neg.prepare(events, std)
+    items = st.menu(P02, 1.0, std, neg.est, 370.96, [events[0]["term_sheets"][0]["terms"]])
+    assert items
+    assert all(m["terms"]["unit_price"] >= round(370.96 * st.LOWEST_SHARE, 2) - 0.01 for m in items)
+    reach = st.reachable_c(P02, std, neg.est, 370.96)
+    assert min(m["c"] for m in items) <= reach * 1.003
+    assert all(m["c"] <= reach * 1.011 for m in items)  # index-clause packages keep their 1% allowance
+
+
+def test_a_cheaper_alternative_sheet_is_sent_back_before_closing(pkg):
+    """Only the standing sheet can be accepted: when their own alternative is cheaper for us, we send its terms back
+    instead of closing on the dearer standing sheet (P07: the standing 12-month sheet lost to our alternative, the
+    36-month alternative did not, and the case ended in a walk-away)."""
+    neg, events = _negotiator(pkg), _thread()
+    neg.step(events)
+    neg.sent()
+    events = _reply(events, "final_offer", 369.0, {"payment_days": 14})
+    events[-1]["term_sheets"].append({"term_sheet_id": "offer:70510-2-a", "terms": {"unit_price": 360.0,
+                                      "payment_days": 30, "index_clause": None}})  # fmt: skip
+    kind, message, _ = neg.step(events)
+    assert kind == "send"
+    assert message["term_sheets"][0]["terms"]["unit_price"] == 360.0
+    kind, _, _ = neg.step(_reply(events, "agreed", 360.0))
+    assert kind == "settle"

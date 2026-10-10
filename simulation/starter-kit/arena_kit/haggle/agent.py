@@ -583,7 +583,11 @@ class Negotiator:
             )
         with self.shared.lock:  # reserved for the whole case now: a parallel thread must not pick the same ID
             self.shared.used |= {r for r in taken if not r.startswith(PER_SUPPLIER)}
-        self.pending, self.pending_c = taken, max(self.goal_now or 0, *(by_key[k]["c"] for k in keys))
+        sheets_c = max(by_key[k]["c"] for k in keys)
+        # In a tender the schedule records what we really offered: a new structure priced near our anchor is not a
+        # step to the goal (P05: recording the goal made the next round "reach" a bidder still falling 2.50 a round)
+        tender = len(case.get("suppliers", [])) > 1
+        self.pending, self.pending_c = taken, sheets_c if tender else max(self.goal_now or 0, sheets_c)
         self.pending_structs = {_struct(t) for t in sheets}
         if mode == "probe":
             self.probed = True
@@ -616,6 +620,22 @@ class Negotiator:
         """Settle on their standing sheet; if an earlier sheet of theirs was clearly better, ask for it back first
         (once, and only while messages are left)."""
         now = self.their_c(events, std)
+        sheet_id, standing_terms = standing(events)
+        if (
+            moves_left(self.case, events) > 0
+            and standing_terms.get("unit_price")
+            and self.c(standing_terms, std) > now * 1.002
+            and not getattr(self, "took_alternative", False)
+        ):
+            # Only the standing sheet can be accepted. Their own cheaper alternative ("-a") is taken by sending its
+            # terms back (they answer `agreed`): settling on the standing sheet instead walked away from a 36-month
+            # alternative in P07, because the standing 12-month sheet did not beat our alternative.
+            self.took_alternative = True
+            alt = min(
+                (t for i, t in offers(events) if i != sheet_id and t.get("unit_price")), key=lambda t: self.c(t, std)
+            )
+            self.best = (self.c(alt, std), alt)
+            return self.rescue(events, std, "We would like to go ahead with your alternative package")
         if (
             moves_left(self.case, events) > 0
             and self.best
@@ -627,14 +647,15 @@ class Negotiator:
             return self.rescue(events, std)
         return "settle", None, {"rationale": why, "attempts": 0, "fallback": None}
 
-    def rescue(self, events, std):
-        """A later counter of theirs was worse than an earlier one: ask for the earlier terms back."""
+    EARLIER = "Your earlier proposal was the better fit for both sides, so we would like to go ahead"
+
+    def rescue(self, events, std, lead=EARLIER):
+        """Ask for a sheet of theirs back: an earlier, better counter, or their own cheaper alternative."""
         terms = complete_offer(self.case, {**self.best[1]})
         message = {
             "subject": f"Re: {latest(events).get('subject', self.case['title'])}"[:300],
-            "body": "Thank you for your latest message. Your earlier proposal was the better fit for both sides, so we "
-            "would like to go ahead on exactly those terms (attached). Could you confirm them?\n\n"
-            "Kind regards\nHollerau Pumpenwerke, Purchasing",
+            "body": f"Thank you for your latest message. {lead} on exactly those terms (attached). Could you confirm "
+            "them?\n\nKind regards\nHollerau Pumpenwerke, Purchasing",
             "term_sheets": [{"terms": terms}],
         }
         self.pending, self.pending_c = set(), self.best[0]
@@ -666,11 +687,15 @@ class Negotiator:
         price = terms.get("unit_price") or 0
         if moves_left(case, events) <= 0 or not price or latest(events).get("status") in FIRM:
             return "settle", None, {**meta, "rationale": "no usable counter"}
+        if not items and self.est is not None:
+            # a package 2% (in C) under their best sheet, on whichever structure is best for us at that cost: never
+            # their own structure at 98% of its price (a 12-month sheet they then agreed to scored 0.04)
+            their = [x for _, x in offers(events) if x.get("unit_price")]
+            items = st.menu(case, 0.98 * self.their_c(events, std), std, self.est, price, their)
         if items:
             t, c = items[0]["terms"], items[0]["c"]
         else:
-            t = complete_offer(case, {**terms, "unit_price": round(price * 0.98, 2)})
-            c = self.c(t, std)
+            return "settle", None, {**meta, "rationale": "no guarded counter exists"}
         if not must_haves_ok(case, t, std) or c >= self.c(terms, std) - 1:
             return "settle", None, {**meta, "rationale": "fallback counter would not be cheaper"}
         meta["fallback"] = meta.get("fallback") or why or "model gave no valid answer"
