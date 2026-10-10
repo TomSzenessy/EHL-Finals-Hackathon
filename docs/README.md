@@ -73,7 +73,6 @@ itself and this table cannot drift. Edit the line in the document, not here.
 | [`legal/impressum.template.md`](./legal/impressum.template.md) | Draft provider-information scaffold | A public operator notice is required. |
 | [`legal/privacy-notice.template.md`](./legal/privacy-notice.template.md) | Draft privacy-notice scaffold | A public privacy notice is prepared for factual completion and review. |
 | [`legal/terms.template.md`](./legal/terms.template.md) | Draft terms scaffold | Public terms are prepared for factual completion and review. |
-| [`product/ui-reviews.md`](./product/ui-reviews.md) | Screenshot review history: verdicts, findings, reviewed code digests | judging UI quality or citing review evidence |
 
 ### Extensibility and evidence
 
