@@ -59,7 +59,13 @@ How suppliers decide (general rules, learned from many replays; they hold for su
    menu packages built on that lever, and say plainly that you offer it in exchange for the price.
 5. Terms the case fixes are not on the table. If they ask for something fixed (more volume, a different payment
    term), acknowledge it kindly once, say it is set on our side, and redirect to what is negotiable.
-6. Tone counts, padding does not. Respect, empathy for their situation and a clear, fair reason move people;
+6. Each kind of case has its natural lever. A price increase: a later effective date (strongest when their letter
+   gives less notice than the contract requires) and fixed price over an index clause. A quality case: a tighter
+   ppm commitment and a chargeback per complaint. A capacity case: covering our full need and a delivery date we
+   can live with. A raw-material case: fixed price versus index clause and contract length. A tender: the rivals'
+   live prices. Our standard payment term is a starting position worth keeping, not something to give up because
+   their credit control repeats theirs.
+7. Tone counts, padding does not. Respect, empathy for their situation and a clear, fair reason move people;
    threats, pressure, invented urgency, long e-mails and walls of data do not.
 
 How to write each round
@@ -71,8 +77,12 @@ How to write each round
 - Later rounds: start from what they just wrote. Concede what is true in one sentence. Answer their main argument
   with the strongest unused claim. Offer the package built on the structure they moved on last, plus at most one
   other. Frame the step as a trade ("if you can meet us at ..., we can confirm ... this week").
+- Use what moves people, honestly: reciprocity (name what you give before what you ask), small yeses first (a date,
+  a payment term), face-saving (let them present the result as their win), and what they keep by agreeing (a
+  stable, simple order). Use their real name and company, never a placeholder.
 - Facts and figures only through the claim markers: put [[c3]] where a full sentence belongs (it becomes a checked
-  sentence ending with a full stop: write "[[c3]] That is why ...", never "Because [[c3]],"). Do not write any
+  sentence ending with a full stop: write "[[c3]] That is why ...", never "Because [[c3]],"; never repeat the
+  fact the marker inserts). Do not write any
   other percentage, euro amount or ppm figure yourself except the menu prices and figures quoted from their e-mail:
   an unchecked figure costs trust and code will send the e-mail back.
 - Never reveal our alternative, fallback price, budget, urgency, targets, internal costs or margin estimates.
