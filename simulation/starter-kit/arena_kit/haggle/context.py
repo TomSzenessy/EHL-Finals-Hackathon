@@ -293,7 +293,7 @@ def claims(pkg, case, sup, dos, ask=None):
 
     def add(kind, refs, text, helps, note=""):
         if refs and all(r in facts for r in refs):
-            strength = STRENGTH.get(kind, "medium")
+            strength = "weak" if "WEAK:" in note else STRENGTH.get(kind, "medium")
             if kind == "index" and not re.search(r"changed -(?:[1-9]|\d{2,})", text):
                 # a rise or a flat window: "a single month of stability does not change our calculation". A fall of 1%
                 # or more on a cost driver, short window or not, moved P18 from 6.10 to 5.50 in one round.
@@ -338,8 +338,8 @@ def claims(pkg, case, sup, dos, ask=None):
                         [f"idx:{s}@{m1}", f"idx:{s}@{end}"],
                         f"{name} changed {chg:+.1f}% from {m1} to {end} (idx:{s}@{m1}, idx:{s}@{end}).",
                         "buyer",
-                        f"{k}-month window ending {end}: a second fall on the same index (other IDs); "
-                        "use after the first, a supplier may say it already counted it",
+                        f"{k}-month window ending {end}: a second fall on the same index (other IDs). WEAK: "
+                        "suppliers answer 'already taken into account' to a second fact of a kind; last resort",
                     )
                     break
     for d in dos["documents"]:  # a price letter that gives less notice than the contract demands
@@ -401,7 +401,7 @@ def claims(pkg, case, sup, dos, ask=None):
                 f"Our volume forecast for {part} changed by {f['change_pct']:+.1f}% ({ref}).",
                 "buyer" if f["change_pct"] > 0 else "supplier",
                 "pair it with the committed annual quantity or a longer term"
-                + ("; an earlier quarter: use after the latest one" if i else ""),
+                + ("; an earlier quarter. WEAK: a second forecast got 'already taken into account'" if i else ""),
             )
     for span, rows in (("latest", dos["scorecards"][:4]), ("the year before", dos["scorecards"][4:8])):
         sc = [r for r in rows if r["id"] in facts]  # two spans of quarters: different IDs, two arguments
@@ -409,7 +409,7 @@ def claims(pkg, case, sup, dos, ask=None):
             continue
         otd, ppm = sum(r["otd_pct"] for r in sc) / len(sc), sum(r["ppm"] for r in sc) / len(sc)
         ids = ", ".join(r["id"] for r in sc)
-        later = "" if span == "latest" else "; the earlier quarters: use after the latest ones"
+        later = "" if span == "latest" else "; the earlier quarters. WEAK: a second fact of a kind is 'already counted'"
         add(
             "delivery",
             [r["id"] for r in sc],
