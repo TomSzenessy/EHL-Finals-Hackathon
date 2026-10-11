@@ -117,7 +117,9 @@ Set them on the Settings tab (or in `.env`): any OpenAI-compatible endpoint (`LL
 `LLM_MODEL`, `LLM_API_KEY`) or `LLM_PROVIDER=anthropic`. The page stores them in `haggle_settings.json`
 (git-ignored; the API key is write-only). The system prompt is the file `starter-kit/prompts/system.md`
 (tracked in git; without it the built-in prompt in `agent.py` is used; a file without the `"offers"` answer
-format falls back to the built-in prompt, since the model no longer sets prices). To experiment in one clone
+format falls back to the built-in prompt, since the model no longer sets prices). There is no such file now, so
+the built-in prompt runs; an old-format draft sits ignored at `prompts/system.legacy-term-sheets.md` (untracked).
+To experiment in one clone
 without touching the others, point the Settings "Prompt file" at an untracked path. Every run records the exact
 prompt it used, shown on the Formatted tab.
 The model receives the supplier's evidence and your private rates; a local model keeps that on your machine.
