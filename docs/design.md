@@ -21,7 +21,11 @@ the rule in code for each lesson: [`haggle-evidence.md`](./haggle-evidence.md).
   packages), except structures that at their price cost us over 5% more than the best one (a short term over a
   longer need), terms that cost us nothing set to what the supplier asked for, its own structure first, never below
   78% of its price or above what it asked for the same structure. The model picks one to three by key and must
-  write the prices as listed.
+  write the prices as listed. **Fixed price on a rising index** (`economics.hold_fixed_price`): when every clause
+  option costs us more than none and there is no supplier-health charge, the menu holds fixed-price sheets only
+  (their structure without the clause, no terms trade on their clause sheet); the supplier's own clause sheets
+  are still accepted when they are the cheapest for us by C (P08/P18 scripted hold 0.63-0.71 against agent
+  medians 0.56/0.55).
 - **The score is C, not the unit price.** `economics.py` prices every sheet with the arena's own cost function
   including our estimate of the supplier-health charge (stabilise and secure_supply cases), from the should-cost
   row times 0.98 (calibrated on the arena's exact breakdowns of P01 and P02), capped at 99% of its own ask.
@@ -38,6 +42,9 @@ the rule in code for each lesson: [`haggle-evidence.md`](./haggle-evidence.md).
   quote): the climb, the menu and the terms trade stop under it. A supplier sheet that breaks a must-have (a field it
   leaves out closes on its standard terms) is sent back once, even after a final offer, at its price with the
   must-have fields kept, before the close would walk away. All API clients of one key share its per-second limit.
+- **Never the same sheets twice** (`Negotiator.no_repeat`): a supplier walked away when our sheet repeated the last
+  one (P08). A repeat moves each sheet a fifth of the way to their price (at least a cent, the e-mail's figure with
+  it) while it stays under their sheet and our alternative; otherwise the thread settles.
 - **RFQs**: the arena answers one call per session at a time, so parallel threads queued past their 60 s (P05
   timed out twice). Every call of a session goes through one gate; after round 1 only the two cheapest bidders
   keep negotiating; a rival's lower standing offer is cited to the others; the target is the cheapest any bidder

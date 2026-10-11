@@ -61,6 +61,7 @@ itself and this table cannot drift. Edit the line in the document, not here.
 | [`design.md`](./design.md) | Haggle agent and page: decisions and trust boundaries | Building or reviewing the simulation agent or its page. |
 | [`engineering.md`](./engineering.md) | Modular design, single source of truth, dependency, and cleanup rules | Code is being changed, refactored, or reviewed. |
 | [`haggle-evidence.md`](./haggle-evidence.md) | What the hosted suppliers did and the rule in code for each lesson | Changing a negotiation rule, or checking why one exists. |
+| [`haggle-probes.md`](./haggle-probes.md) | Controlled probe sessions and offline analyses on the hosted suppliers, one row each | Planning a probe, or checking whether an idea was already tried. |
 | [`security.md`](./security.md) | Secure implementation baseline | Auth, secrets, CI, dependencies, deployment, or untrusted input changes. |
 | [`architecture/README.md`](./architecture/README.md) | Current structure, seams, kit module map, and design rules | Adding a surface, changing dependencies, or locating ownership. |
 

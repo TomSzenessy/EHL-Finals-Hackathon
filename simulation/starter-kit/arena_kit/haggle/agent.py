@@ -196,6 +196,7 @@ class Negotiator:
         self.rival_cands = {}
         self.offered = set()  # structures (terms without the price) we have offered
         self.goal_now = None
+        self.fixed_only = False  # offer fixed prices only, the clause stays the supplier's (economics.hold_fixed_price)
 
     # -- the numbers ---------------------------------------------------------------------------
     def c(self, terms, std):
@@ -207,6 +208,7 @@ class Negotiator:
             price = terms.get("unit_price") or 0
             self.est = eco.estimate(self.case, self.dossier, std, ask=price)
             self.plan = eco.plan(self.case, std, self.est, price) if price else {}
+            self.fixed_only = eco.hold_fixed_price(self.case, std, self.est, price)
             c_open = min((self.c(t, std) for _, t in offers(events) if t.get("unit_price")), default=math.inf)
             target = (self.plan or {}).get("target") or {}
             if target and math.isfinite(c_open):
@@ -328,6 +330,12 @@ class Negotiator:
             lines.append("Round 1: offer two or three packages on different levers, with your strongest claims.")
         else:
             lines.append("Offer one or two packages: the structure they moved on last, plus at most one other.")
+        if self.fixed_only:
+            lines.append(
+                "FIXED PRICE: we offer fixed prices only. If they ask for their surcharge or index clause, acknowledge "
+                "their raw-material risk in one sentence, say we plan on a fixed price for the whole term, and that "
+                "we are reviewing their clause proposal alongside it."
+            )
         lines.append(f"Supplier standard terms (apply to omitted fields): {json.dumps(std)}")
         lines.append(
             f"Fixed by the case, not negotiable (never offer, promise or discuss changing them, even when they ask): "
@@ -345,12 +353,49 @@ class Negotiator:
         """Returns ("send", message, meta) or ("settle", None, meta). An internal error never ends the case at the
         opening quote: it degrades to a plain counter from the schedule, and the page shows the reason."""
         try:
-            return self._step(events, rivals, dossier)
+            out = self._step(events, rivals, dossier)
         except Exception as exc:  # noqa: BLE001 - the case must go on
             std = eco.full_standard(getattr(self, "dossier", {}) or {}, standard_terms(events))
-            return self.fallback(
+            out = self.fallback(
                 events, std, {"attempts": 0, "fallback": f"internal error: {type(exc).__name__}: {exc}"}, None
             )
+        try:
+            return self.no_repeat(events, out)
+        except Exception:  # noqa: BLE001 - the guard must never stop a case
+            return out
+
+    @staticmethod
+    def _sheet_set(sheets):
+        return sorted(json.dumps(s.get("terms") or {}, sort_keys=True) for s in sheets or [])
+
+    def no_repeat(self, events, out):
+        """Never send the sheets of our last message again: Donautal walked away when we did (P08, score 0), and a capped
+        climb (our alternative, a stalled fallback) repeated them offline (P04, P07, P15, P19). Each sheet moves a fifth
+        of the way to their price, at least a cent, while it stays under their sheet and our alternative; if none
+        can, we settle (accept their sheet, or the close takes our alternative)."""
+        kind, message, meta = out
+        if kind != "send" or not (message or {}).get("term_sheets"):
+            return out
+        ours = [m for m in events if m.get("from") == "buyer" and m.get("term_sheets")]
+        if not ours or self._sheet_set(ours[-1]["term_sheets"]) != self._sheet_set(message["term_sheets"]):
+            return out
+        std = eco.full_standard(getattr(self, "dossier", {}) or {}, standard_terms(events))
+        _, theirs = standing(events)
+        their_price, ceiling = theirs.get("unit_price"), min(self.their_c(events, std), self.alt_c())
+        moved, body = [], message.get("body") or ""
+        for s in message["term_sheets"]:
+            p = s["terms"]["unit_price"]
+            if their_price and their_price > p:
+                t = complete_offer(self.case, {**s["terms"], "unit_price": round(p + max(0.01, (their_price - p) / 5), 2)})
+                if self.c(t, std) < ceiling:
+                    moved.append({"terms": t})
+                    body = body.replace(f"{p:.2f}", f"{t['unit_price']:.2f}")  # the text names the sheet's price
+        if len(moved) < len(message["term_sheets"]):
+            # a package the text may name could not move: settle rather than send text and sheets that disagree
+            self.pending, self.pending_c = set(), None
+            return self.settle_or_rescue(events, std, "Our sheet could only repeat the last one: settle instead.")
+        self.pending_c = max(self.pending_c or 0, *(self.c(m["terms"], std) for m in moved))
+        return kind, {**message, "body": body, "term_sheets": moved}, {**meta, "repeat_guard": True}
 
     def decide(self, events, std):
         """Code's call before the model is asked: ("settle", why) or ("probe"|"send", C for our sheets)."""
@@ -404,7 +449,8 @@ class Negotiator:
         if rival < now:  # a tender: never offer a bidder more than the cheapest rival's sheet costs us
             goal = min(goal, rival * 0.995)
         alt = self.alt_c()
-        if self.price_held(events) and self.terms_trade(events, std):
+        # (holding a fixed price, their held price is on their clause sheet: a terms trade would offer that clause)
+        if not self.fixed_only and self.price_held(events) and self.terms_trade(events, std):
             # in a tender only if it would beat the cheapest rival; never if it costs more than our alternative
             if min(m["c"] for m in self.trade_items) < min(rival, alt):
                 return "terms", None
@@ -483,13 +529,14 @@ class Negotiator:
         their = sorted((t for _, t in offers(events) if t.get("unit_price")), key=lambda t: self.c(t, std))
         if goal is None or not ref:
             return []
-        items = st.menu(self.case, goal, std, self.est, ref, their)
+        items = st.menu(self.case, goal, std, self.est, ref, their, fixed_only=self.fixed_only)
         sched = self.schedule
         if mode == "send" and sched and sched.ours and goal > sched.c_anchor:
             # A structure the supplier has not seen from us yet starts again near our opening C: priced at the
             # current step it was agreed at once (P02: an index clause at EUR 355.74 that it took at 349 earlier).
             fresh = st.menu(
-                self.case, sched.c_anchor + FRESH_SHARE * (goal - sched.c_anchor), std, self.est, ref, their
+                self.case, sched.c_anchor + FRESH_SHARE * (goal - sched.c_anchor), std, self.est, ref, their,
+                fixed_only=self.fixed_only,
             )
             by_struct = {_struct(m["terms"]): m for m in fresh if _struct(m["terms"]) not in self.offered}
             items = [by_struct.get(_struct(m["terms"]), m) for m in items]
@@ -749,7 +796,8 @@ class Negotiator:
             # a package 2% (in C) under their best sheet, on whichever structure is best for us at that cost: never
             # their own structure at 98% of its price (a 12-month sheet they then agreed to scored 0.04)
             their = [x for _, x in offers(events) if x.get("unit_price")]
-            items = st.menu(case, 0.98 * self.their_c(events, std), std, self.est, price, their)
+            items = st.menu(case, 0.98 * self.their_c(events, std), std, self.est, price, their,
+                            fixed_only=self.fixed_only)  # fmt: skip
         if items:
             t, c = items[0]["terms"], items[0]["c"]
         else:

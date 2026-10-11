@@ -82,6 +82,26 @@ def relationship_case(case):
     return case["buyer"].get("category_goal") in RELATIONSHIP_GOALS
 
 
+def hold_fixed_price(case, std, est, price):
+    """Offer only fixed-price sheets and leave the index clause to the supplier? Yes when the clause is negotiable,
+    a sheet without one is allowed, every clause option costs us more than none at the supplier's price (a rising
+    index path plus the index risk) and there is no supplier-health charge. Holding a fixed price every round made
+    the supplier sweeten its own clause sheet (P08 0.67/0.71, P18 0.632 three times, scripted) where the agent's
+    equal-cost clause packages ended on the supplier's 5%-deadband structure (median 0.56 and 0.55). With a health
+    charge the clause package agreed in round 1 is kept (P02: 0.735 every run; no fixed price under ~367 at 90 days
+    was ever offered to us)."""
+    options = case.get("term_options", {}).get("index_clause") or []
+    if "index_clause" not in case["negotiable"] or None not in options or relationship_case(case) or not price:
+        return False
+    if any(m.get("field") == "index_clause" for m in case["buyer"].get("must_haves", [])):
+        return False
+    fixed = cost(case, complete_offer(case, {"unit_price": price, "index_clause": None}), std, est)
+    clauses = [o for o in options if o]
+    return bool(clauses) and all(
+        cost(case, complete_offer(case, {"unit_price": price, "index_clause": o}), std, est) > fixed for o in clauses
+    )
+
+
 def plan(case, std, est, price):
     """The cheapest sheet by C(est) over the allowed options and prices up to `price` (the supplier's own
     price), as {target, packages}: `target` is the best sheet, `packages` the best sheet of every option
