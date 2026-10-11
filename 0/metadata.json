@@ -1,0 +1,169 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4MVBY1JF0W9R174VYSE62AF",
+  "session_id": "01a12831-fd3c-75a1-8fc1-44dc294558ce",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-11T06:45:55.965041Z",
+  "branch": "haggle-claim-groups-tender-timeouts",
+  "checkpoints_count": 8,
+  "save_step_count": 8,
+  "files_touched": [
+    "docs/README.md",
+    "docs/haggle-breakthrough-hypotheses.md",
+    "docs/haggle-evaluation-protocol.md",
+    "docs/haggle-evidence.md",
+    "docs/haggle-experiment-cards.md",
+    "docs/haggle-experiment-plan.md",
+    "docs/haggle-probe-evidence.md",
+    "docs/haggle-strategy-analysis.md",
+    "simulation/README.md",
+    "simulation/starter-kit/arena_kit/haggle/context.py",
+    "simulation/starter-kit/runs/20261011-014457-1b1d.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-2285.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-347f.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-40ab.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-5922.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-a580.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-b3d4.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-bc90.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-bda3.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-f142.jsonl",
+    "simulation/starter-kit/tests/test_haggle.py"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6.1-sol",
+  "turn_id": "af5f0a2e9da2",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 400623,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 31019904,
+    "output_tokens": 75004,
+    "api_call_count": 295,
+    "subagent_tokens": {
+      "input_tokens": 344397,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 9803904,
+      "output_tokens": 34892,
+      "api_call_count": 152
+    },
+    "subagent_tokens_complete": true
+  },
+  "session_metrics": {
+    "turn_count": 8
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-11T06:45:55.818878Z",
+    "agent_lines": 589,
+    "agent_removed": 9,
+    "human_added": 1424,
+    "human_modified": 6,
+    "human_removed": 0,
+    "total_committed": 2018,
+    "total_lines_changed": 2039,
+    "agent_percentage": 29.328102010789603,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 119,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "simulation/starter-kit/prompts/system.md": 75,
+        "simulation/starter-kit/runs/20261011-004233-8482.jsonl": 22,
+        "simulation/starter-kit/runs/20261011-004556-bb21.jsonl": 22
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 413,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 520,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 890,
+      "agent_lines_removed": 9
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 143,
+      "user_lines_removed": 0,
+      "agent_lines_added": 890,
+      "agent_lines_removed": 9,
+      "user_added_per_file": {
+        "docs/haggle-evaluation-protocol.md": 52,
+        "docs/haggle-strategy-analysis.md": 5,
+        "simulation/starter-kit/runs/20261011-021609-6dfa.jsonl": 17,
+        "simulation/starter-kit/runs/20261011-021609-8a3d.jsonl": 17,
+        "simulation/starter-kit/runs/20261011-021609-a6d5.jsonl": 26,
+        "simulation/starter-kit/runs/20261011-021609-a710.jsonl": 26
+      }
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 143,
+      "user_lines_removed": 0,
+      "agent_lines_added": 890,
+      "agent_lines_removed": 9,
+      "user_added_per_file": {
+        "docs/haggle-evaluation-protocol.md": 52,
+        "docs/haggle-strategy-analysis.md": 5,
+        "simulation/starter-kit/runs/20261011-021609-6dfa.jsonl": 17,
+        "simulation/starter-kit/runs/20261011-021609-8a3d.jsonl": 17,
+        "simulation/starter-kit/runs/20261011-021609-a6d5.jsonl": 26,
+        "simulation/starter-kit/runs/20261011-021609-a710.jsonl": 26
+      }
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 347,
+      "user_lines_removed": 0,
+      "agent_lines_added": 890,
+      "agent_lines_removed": 9,
+      "user_added_per_file": {
+        "docs/haggle-evaluation-protocol.md": 117,
+        "docs/haggle-strategy-analysis.md": 5,
+        "simulation/README.md": 8,
+        "simulation/starter-kit/probes/opening_fixed.py": 85,
+        "simulation/starter-kit/runs/20261011-021609-6dfa.jsonl": 17,
+        "simulation/starter-kit/runs/20261011-021609-8a3d.jsonl": 17,
+        "simulation/starter-kit/runs/20261011-021609-a6d5.jsonl": 26,
+        "simulation/starter-kit/runs/20261011-021609-a710.jsonl": 26,
+        "simulation/starter-kit/runs/20261011-023239-3e55.jsonl": 20,
+        "simulation/starter-kit/runs/20261011-023239-be3a.jsonl": 26
+      }
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 369,
+      "user_lines_removed": 0,
+      "agent_lines_added": 898,
+      "agent_lines_removed": 9,
+      "user_added_per_file": {
+        "docs/haggle-evaluation-protocol.md": 117,
+        "docs/haggle-strategy-analysis.md": 35,
+        "simulation/starter-kit/probes/opening_fixed.py": 85,
+        "simulation/starter-kit/runs/20261011-021609-6dfa.jsonl": 17,
+        "simulation/starter-kit/runs/20261011-021609-8a3d.jsonl": 17,
+        "simulation/starter-kit/runs/20261011-021609-a6d5.jsonl": 26,
+        "simulation/starter-kit/runs/20261011-021609-a710.jsonl": 26,
+        "simulation/starter-kit/runs/20261011-023239-3e55.jsonl": 20,
+        "simulation/starter-kit/runs/20261011-023239-be3a.jsonl": 26
+      }
+    }
+  ]
+}

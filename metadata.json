@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4MVBY1JF0W9R174VYSE62AF",
+  "strategy": "manual-commit",
+  "branch": "haggle-claim-groups-tender-timeouts",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "docs/README.md",
+    "docs/haggle-breakthrough-hypotheses.md",
+    "docs/haggle-evaluation-protocol.md",
+    "docs/haggle-evidence.md",
+    "docs/haggle-experiment-cards.md",
+    "docs/haggle-experiment-plan.md",
+    "docs/haggle-probe-evidence.md",
+    "docs/haggle-strategy-analysis.md",
+    "simulation/README.md",
+    "simulation/starter-kit/arena_kit/haggle/context.py",
+    "simulation/starter-kit/runs/20261011-014457-1b1d.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-2285.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-347f.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-40ab.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-5922.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-a580.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-b3d4.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-bc90.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-bda3.jsonl",
+    "simulation/starter-kit/runs/20261011-014457-f142.jsonl",
+    "simulation/starter-kit/tests/test_haggle.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 400623,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 31019904,
+    "output_tokens": 75004,
+    "api_call_count": 295,
+    "subagent_tokens": {
+      "input_tokens": 344397,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 9803904,
+      "output_tokens": 34892,
+      "api_call_count": 152
+    },
+    "subagent_tokens_complete": true
+  }
+}
