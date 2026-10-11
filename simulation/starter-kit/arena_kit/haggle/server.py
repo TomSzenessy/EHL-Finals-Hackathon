@@ -73,6 +73,9 @@ def reconcile(meta, arenas):
     return fixed
 
 
+CASE_RESULT = ("status", "score", "saved_eur", "rounds", "end_reason")
+
+
 def read_run(path):
     """(meta, events) of a recorded run."""
     meta, events = {}, []
@@ -254,6 +257,38 @@ def create_app(
         client.http.close()
         out["recorded"] = {m["session_id"]: m["run_id"] for m in metas() if m.get("session_id")}
         return out
+
+    @app.get("/api/compare")
+    def compare(mode: str = "online"):
+        """Every team's result per final case, side by side: for people, never for the agent."""
+        client = arenas.client(check_mode(mode))
+        try:
+            board = client.results()
+            mine = None
+            try:
+                mine = client.me().get("team_name")
+            except Exception:  # the comparison still works without knowing which column is ours
+                pass
+            teams, cases = [], {}
+            for t in board.get("teams", []):
+                name = t["team_name"]
+                teams.append({k: t.get(k) for k in ("team_name", "rank", "total", "deals", "rounds", "saved_eur")})
+                try:
+                    waves = client.team_results(name).get("waves", [])
+                except ArenaError:
+                    continue
+                for w in waves:
+                    for c in w.get("cases", []):
+                        row = cases.setdefault(
+                            c["case_id"],
+                            {"case_id": c["case_id"], "title": c.get("title"), "type": c.get("type"),
+                             "wave": w.get("n"), "theme": w.get("theme"), "teams": {}},
+                        )  # fmt: skip
+                        row["teams"][name] = {k: c.get(k) for k in CASE_RESULT}
+        finally:
+            client.http.close()
+        order = sorted(cases.values(), key=lambda r: (r["wave"] or 0, r["case_id"]))
+        return {"me": mine, "teams": teams, "cases": order}
 
     @app.get("/api/suppliers")
     def suppliers():

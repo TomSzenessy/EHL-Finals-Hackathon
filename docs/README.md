@@ -60,7 +60,15 @@ itself and this table cannot drift. Edit the line in the document, not here.
 | [`../.security/threat-model.md`](../.security/threat-model.md) | STRIDE threat model and accepted trust boundaries | A security-sensitive tool, CI path, or agent permission is reviewed. |
 | [`design.md`](./design.md) | Haggle agent and page: decisions and trust boundaries | Building or reviewing the simulation agent or its page. |
 | [`engineering.md`](./engineering.md) | Modular design, single source of truth, dependency, and cleanup rules | Code is being changed, refactored, or reviewed. |
+| [`haggle-action-plan.md`](./haggle-action-plan.md) | Ranked, evidence-backed plan, bug list and experiments for the Live Final | Deciding what to implement, test or run next on the haggle agent. |
+| [`haggle-breakthrough-hypotheses.md`](./haggle-breakthrough-hypotheses.md) | Broader evidence-backed hypotheses after failed opening screen | Choosing distinct negotiation mechanisms without spending practice credits. |
+| [`haggle-bug-list.md`](./haggle-bug-list.md) | Every known haggle-agent bug, inconsistency and inefficiency with evidence and status | Picking the next fix, or checking whether a problem is already known. |
+| [`haggle-evaluation-protocol.md`](./haggle-evaluation-protocol.md) | Negotiation experiment measurement and promotion gates | Preparing authorized comparisons and deciding whether a strategy improved. |
 | [`haggle-evidence.md`](./haggle-evidence.md) | What the hosted suppliers did and the rule in code for each lesson | Changing a negotiation rule, or checking why one exists. |
+| [`haggle-experiment-cards.md`](./haggle-experiment-cards.md) | Controlled negotiation experiment cards | Selecting a specific score hypothesis to test. |
+| [`haggle-experiment-plan.md`](./haggle-experiment-plan.md) | Evidence-backed negotiation experiment protocol and promotion criteria | Designing negotiation experiments to improve mean score without unapproved practice use. |
+| [`haggle-probe-evidence.md`](./haggle-probe-evidence.md) | Detailed historical supplier probes | Checking which tactics were already tested before designing another experiment. |
+| [`haggle-strategy-analysis.md`](./haggle-strategy-analysis.md) | Dated practice scoring analysis and latest-suite results | Tracing negotiation strategy hypotheses to session evidence and counterfactual calculations. |
 | [`security.md`](./security.md) | Secure implementation baseline | Auth, secrets, CI, dependencies, deployment, or untrusted input changes. |
 | [`architecture/README.md`](./architecture/README.md) | Current structure, seams, kit module map, and design rules | Adding a surface, changing dependencies, or locating ownership. |
 

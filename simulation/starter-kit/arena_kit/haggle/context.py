@@ -6,6 +6,7 @@
 model only chooses which to use: a figure it writes itself could be wrong, and a wrong one costs trust."""
 
 import json
+import os
 import re
 import threading
 
@@ -500,7 +501,61 @@ def claims(pkg, case, sup, dos, ask=None):
                 "buyer" if not ask or f["unit_price"] < ask else "supplier",
                 "use only if below their price: it reveals the rival quote",
             )
+    if rival := rival_quote(facts, case, sup, ask, {c["refs"][0] for c in out if c["kind"] == "competing quote"}):
+        ref, f = rival
+        add(
+            "competing quote",
+            [ref],
+            f"Another supplier quoted EUR {f['unit_price'] / (f.get('price_unit') or 1):.2f} per unit for {f['part']} "
+            f"on {f['date']} ({ref}).",
+            "buyer",
+            "a lower quote from another company for this exact part: the one fact that unlocks a supplier's approval "
+            "for a bigger step ('a much lower rival quote: half the step now, the rest after checking'). Use it in "
+            "round 1."
+            if _recent(facts, f.get("date"))
+            else "an older lower quote from another company for this exact part. MEDIUM: use it after the strong "
+            "claims, as a benchmark, not as a live offer",
+        )
+        if not _recent(facts, f.get("date")):
+            out[-1]["strength"] = "medium"
     return out
+
+
+def _recent(facts, date, months=12):
+    """A quote dated within `months` of the newest quote in the data (the data's 'today')."""
+    newest = max((f.get("date") or "" for k, f in facts.items() if k.startswith("quote:") and isinstance(f, dict)),
+                 default="")  # fmt: skip
+    if not (date and newest):
+        return False
+    y, m = int(newest[:4]), int(newest[5:7]) - months
+    while m < 1:
+        y, m = y - 1, m + 12
+    return date >= f"{y:04d}-{m:02d}"
+
+
+def rival_quote(facts, case, sup, ask, taken=()):
+    """The most recent quote another company gave for this case's part below the supplier's own price, as (id, fact).
+    The data holds them outside the case refs (P18: a rival's EUR 5.45 for the same bar against an opening of 6.10);
+    the arena checks a quote by its part and company: the supplier's own quote is 'irrelevant' ("does not concern
+    this part or our company"), so only other companies' quotes count. One part per case only: a bundle's price is
+    not comparable with a single part's quote."""
+    parts = case.get("parts", [])
+    if len(parts) != 1 or not ask or os.environ.get("HAGGLE_RIVAL_QUOTES", "0") not in ("1", "true", "yes"):
+        # Off by default: the API brief checks a `quote` only if it is "a quote of this case (in its refs or your
+        # alternative)", so one from outside the case most likely comes back `irrelevant`, which costs trust.
+        # HAGGLE_RIVAL_QUOTES=1 turns it on for experiment E1 (docs/haggle-action-plan.md).
+        return None
+    rivals = sorted(
+        (
+            (f.get("date") or "", ref, f)
+            for ref, f in facts.items()
+            if ref.startswith("quote:") and ref not in taken and isinstance(f, dict) and f.get("part") == parts[0]
+            and f.get("supplier") not in (sup, None) and f.get("unit_price")
+            and f["unit_price"] / (f.get("price_unit") or 1) < ask * 0.98
+        ),
+        reverse=True,
+    )  # fmt: skip
+    return (rivals[0][1], rivals[0][2]) if rivals else None
 
 
 def injection(case, dos, cands, letter="", texts=None, notes=()):

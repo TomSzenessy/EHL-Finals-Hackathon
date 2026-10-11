@@ -103,7 +103,7 @@ the full text of every letter and note. The tab also lists every session you hav
 **Raw JSON** (every arena and model request and response, as sent; rows you open stay open while a run adds
 events) · **Formatted** (the same run as readable e-mails, term sheets, claim verdicts, reasons and result) ·
 **Suppliers** (the file of any supplier and its sessions) · **Team** (what the arena API says about us: quota,
-best scores, practice leaderboard, all sessions, downloads) · **Settings** (model and system prompt file).
+best scores, every team's score per final case, practice leaderboard, all sessions, downloads) · **Settings** (model and system prompt file).
 
 Sessions are saved as `starter-kit/runs/<id>.jsonl` and tracked in git (runs whose `model` is `scripted` are
 probe sessions played by a fixed script to test one supplier behaviour, not by the agent), so a normal `git push` and `git pull`
@@ -129,3 +129,19 @@ The model receives the supplier's evidence and your private rates; a local model
 ```bash
 cd simulation/starter-kit && uv run --extra ui pytest -q
 ```
+
+## Latest recorded practice evaluation
+
+2026-10-11 01:44 UTC: ten hosted cases on code `c4fb3d5`, model `gpt-6.1-sol`,
+effective prompt `45be8588d0` averaged **77.22%**; ten deals, every must-have satisfied,
+no API errors or fallback decisions. The local custom prompt uses the old answer schema,
+so the existing compatibility guard selects the built-in prompt. Per-case runs and
+observations: [Haggle evidence](../docs/haggle-evidence.md#current-system-practice-check--2026-10-11-0144-utc).
+
+The isolated `starter-kit/probes/opening_fixed.py` screen (Local-WAL-001) removes
+indexed menu packages in round 1 only, without repricing; later rounds use the
+current policy. It does not change the default agent. **Running it opens two
+hosted practice sessions and requires explicit authorization each time.** A
+shared cap prevents replacement sessions; every replay records the probe source
+and SHA as well as the underlying agent/prompt identity. Results and baseline
+comparisons live in the [evaluation protocol](../docs/haggle-evaluation-protocol.md).

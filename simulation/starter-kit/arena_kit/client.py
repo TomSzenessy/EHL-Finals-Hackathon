@@ -4,6 +4,7 @@ import os
 import threading
 import time
 import uuid
+from urllib.parse import quote
 
 import httpx
 
@@ -149,6 +150,14 @@ class ArenaClient:
 
     def leaderboard(self, set_="practice"):
         return self._call("GET", "/leaderboard", params={"set": set_})
+
+    def results(self):
+        """The final's standings for people: every team (not for the agent during the final)."""
+        return self._call("GET", "/results")
+
+    def team_results(self, team_name):
+        """One team's cases of the started final waves: per case status, score, € saved, rounds."""
+        return self._call("GET", f"/results/{quote(team_name, safe='')}")
 
     def downloads(self):
         """The data you can download: the package, and the Sunday release once it is public."""

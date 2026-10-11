@@ -106,6 +106,23 @@ Reply with ONE JSON object and nothing else:
  "offers": ["A", "C"], "rationale": "one or two sentences: what you read in their reply and why these packages"}"""
 
 
+def group(claim):
+    """The kind the arena counts once per supplier: a second claim of a group comes back `duplicate` ("already taken
+    into account") and buys nothing. Across ~1,300 replies: quality notifications after a scorecard claim 59/59
+    duplicate (30/30 verified without one), a scorecard after quality notifications 12/12, a second scorecard span
+    8/8, a second forecast of the same part 21 of 28.
+    Index falls count per series. Each new rival offer is new data (P05: "took it into account" every round), so
+    rival offers have no group."""
+    kind = claim.get("kind")
+    if kind == "rival offer":
+        return None
+    if kind in ("delivery", "quality", "complaints"):
+        return "performance"
+    if kind in ("index", "forecast"):  # per series / per part: a bundle's parts are separate arguments (API brief)
+        return kind + ":" + claim["refs"][0].split("@")[0]
+    return kind
+
+
 class Feedback(Exception):
     """The model's answer broke a rule; the message goes back to it as a correction."""
 
@@ -267,7 +284,8 @@ class Negotiator:
     def free(self):
         with self.shared.lock:
             spent = {r for r in self.shared.used if not r.startswith(PER_SUPPLIER)} | self.used
-        out = {c["id"]: c for c in self.cands if not spent & set(c["refs"])}
+        done = {group(c) for c in self.cands if set(c["refs"]) & self.used} - {None}  # kinds this supplier counted
+        out = {c["id"]: c for c in self.cands if not spent & set(c["refs"]) and group(c) not in done}
         out.update({k: c for k, c in self.rival_cands.items() if not spent & set(c["refs"])})
         return out
 
@@ -275,15 +293,19 @@ class Negotiator:
         """A rival's standing offer, cheaper than this supplier's price, as a checked sentence (citable once per
         supplier). Only the cheapest rival offer is worth citing."""
         self.rival_cands = {}
+        # one marker per rival offer: a reused "r1" for a new, lower offer read as spent to the model (P05: it skipped
+        # the rival's fresh 27.50 as "already used")
+        ids = self.__dict__.setdefault("rival_ids", {})
         cheaper = sorted((p, sid) for sid, p in rivals.items() if their_price and p < their_price)
-        for i, (p, sid) in enumerate(cheaper[:1]):
-            self.rival_cands[f"r{i + 1}"] = {
-                "id": f"r{i + 1}",
+        for p, sid in cheaper[:1]:
+            key = ids.setdefault(sid, f"r{len(ids) + 1}")
+            self.rival_cands[key] = {
+                "id": key,
                 "kind": "rival offer",
                 "refs": [sid],
                 "text": f"Another supplier has offered EUR {p:.2f} per unit for this part ({sid}).",
                 "helps": "buyer",
-                "note": "a live rival offer below their price: strong in a tender; cite once",
+                "note": "a live rival offer below their price: strong in a tender; a new offer is new data, cite it",
                 "strength": "strong",
             }
 
@@ -586,6 +608,11 @@ class Negotiator:
         for m in TOKEN.finditer(body):
             parts.append(body[pos : m.start()])
             cand = free.get(m.group(1))
+            if cand and group(cand) and group(cand) in {group(c) for c in chosen}:  # the second of a kind is wasted
+                raise Feedback(
+                    f"[[{m.group(1)}]] is the same kind of fact as a claim already in this e-mail; the supplier counts "
+                    "a kind once. Use one of them, or a claim of another kind."
+                )
             if cand and len(chosen) < MAX_CLAIMS and not taken & set(cand["refs"]):
                 chosen.append(cand)
                 taken.update(cand["refs"])

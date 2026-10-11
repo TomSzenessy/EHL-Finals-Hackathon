@@ -64,6 +64,24 @@ def test_claims_are_computed_from_the_facts(pkg):
     assert any("-3.7%" in c["text"] for c in cands)  # the electricity index move from the API brief
 
 
+def test_a_rival_companys_lower_quote_for_the_part_is_found_outside_the_case_refs(pkg, monkeypatch):
+    """P18: the case refs hand us only a rival quote above the opening (6.31); the data also holds the rival's live
+    5.45 for the same bar. The supplier's own quotes never count (the arena answers 'irrelevant')."""
+    case = {"parts": ["part:370010"], "refs": ["quote:7200018"], "buyer": {"current_unit_price": 5.84}}
+    off = claims(pkg, case, "sup:70740", dossier(pkg, "sup:70740", case), ask=6.10)  # off by default (API brief)
+    assert all("quote:7300008" not in c["refs"] for c in off)
+    monkeypatch.setenv("HAGGLE_RIVAL_QUOTES", "1")
+    rival = [c for c in claims(pkg, case, "sup:70740", dossier(pkg, "sup:70740", case), ask=6.10)
+             if c["kind"] == "competing quote" and "Another supplier" in c["text"]]  # fmt: skip
+    assert [c["refs"] for c in rival] == [["quote:7300008"]]
+    assert rival[0]["strength"] == "strong" and "EUR 5.45" in rival[0]["text"]
+    own = claims(
+        pkg, case, "sup:70710", dossier(pkg, "sup:70710", case), ask=6.05
+    )  # P08: 70710's own 5.45 is not a rival
+    assert all("quote:7300008" not in c["refs"] for c in own)
+    assert {c["strength"] for c in own if "Another supplier" in c["text"]} == {"medium"}  # 70740's 5.41 of 2025
+
+
 def test_offline_run_is_recorded_and_inspectable(pkg, tmp_path):
     llm = ScriptedLLM()
     client = TestClient(create_app(pkg, Arenas(pkg.facts), llm, folder=tmp_path))
@@ -464,3 +482,94 @@ def test_a_sheet_that_breaks_a_must_have_is_sent_back_with_the_must_have_kept(pk
     assert sheet["unit_price"] == 365.0 and sheet["payment_days"] >= 45
     kind, _, _ = neg.step(_reply(events, "final_offer", 365.0))
     assert kind == "settle"  # once only
+
+
+def test_the_team_tab_lines_up_every_teams_score_per_final_case(pkg, tmp_path):
+    import httpx
+
+    from arena_kit.client import ArenaClient
+
+    def case(cid, score):
+        return {
+            "case_id": cid,
+            "title": cid,
+            "type": "rfq",
+            "status": "deal",
+            "score": score,
+            "rounds": 4,
+            "saved_eur": 10,
+        }
+
+    team = {
+        "Us": [case("case:H01", 0.5), case("case:H02", 0.9)],
+        "Them B": [case("case:H01", 0.7)],
+    }
+
+    def handle(req):
+        path = req.url.path
+        if path == "/v1/me":
+            return httpx.Response(200, json={"team_name": "Us"})
+        if path == "/v1/results":
+            return httpx.Response(
+                200, json={"teams": [{"team_name": n, "rank": i + 1, "total": 1} for i, n in enumerate(team)]}
+            )
+        name = httpx.URL(req.url).path.rsplit("/", 1)[1]
+        return httpx.Response(
+            200, json={"waves": [{"n": 1, "theme": "Opening", "cases": team[name.replace("%20", " ")]}]}
+        )
+
+    class FakeArenas(Arenas):
+        def client(self, mode):
+            return ArenaClient("http://arena", api_key="k", transport=httpx.MockTransport(handle))
+
+    client = TestClient(create_app(pkg, FakeArenas(pkg.facts), ScriptedLLM(), folder=tmp_path))
+    out = client.get("/api/compare?mode=online").json()
+    assert out["me"] == "Us" and [t["team_name"] for t in out["teams"]] == ["Us", "Them B"]
+    h01 = next(c for c in out["cases"] if c["case_id"] == "case:H01")
+    assert h01["teams"]["Us"]["score"] == 0.5 and h01["teams"]["Them B"]["score"] == 0.7
+    assert "Them B" not in next(c for c in out["cases"] if c["case_id"] == "case:H02")["teams"]
+
+
+def test_the_arena_counts_scorecards_and_complaints_as_one_kind_and_a_kind_once():
+    from arena_kit.haggle.agent import group
+
+    sc = {"kind": "delivery", "refs": ["sc:1@2026Q3"]}
+    qn = {"kind": "complaints", "refs": ["qn:1"]}
+    assert group(sc) == group(qn) == group({"kind": "quality", "refs": ["sc:1@2026Q2"]})
+    assert group({"kind": "index", "refs": ["idx:A@2026-01"]}) != group({"kind": "index", "refs": ["idx:B@2026-01"]})
+    assert group({"kind": "forecast", "refs": ["fc:1@2026-09"]}) == group(
+        {"kind": "forecast", "refs": ["fc:1@2026-06"]}
+    )
+    assert group({"kind": "forecast", "refs": ["fc:1@2026-09"]}) != group(
+        {"kind": "forecast", "refs": ["fc:2@2026-09"]}
+    )
+
+
+def test_every_new_rival_offer_stays_citable():
+    from arena_kit.haggle.agent import group
+
+    assert group({"kind": "rival offer", "refs": ["offer:1-2"]}) is None
+
+
+def test_an_agreed_tender_leader_is_kept_alive_with_new_lower_sheets_only_when_enabled(monkeypatch):
+    from types import SimpleNamespace
+
+    from arena_kit.haggle.run import Run
+
+    buyer = {"freight_eur_per_unit": {"DAP": 0.0}, "need_per_year": 4200, "horizon_years": 2,
+             "reference_payment_days": 30, "need_lead_time_days": 35}  # fmt: skip
+    case = {"title": "RFQ", "suppliers": ["sup:a", "sup:b"], "negotiable": ["unit_price"], "round_limit": 10,
+            "buyer": buyer}  # fmt: skip
+    agreed = {"from": "sup:a", "status": "agreed", "subject": "Re", "term_sheets": [
+        {"term_sheet_id": "offer:a-2", "terms": {"unit_price": 27.5}}]}  # fmt: skip
+    events = [{"from": "buyer"}, agreed]
+    run = SimpleNamespace(result=None, last_call={"sup:b": 6}, active={"sup:a", "sup:b"})
+    assert Run._keepalive(run, case, {}, "sup:a", events) is None  # off by default
+    monkeypatch.setenv("HAGGLE_TENDER_KEEPALIVE", "1")
+    first = Run._keepalive(run, case, {}, "sup:a", events)
+    second = Run._keepalive(run, case, {}, "sup:a", events)
+    prices = [m["term_sheets"][0]["terms"]["unit_price"] for m in (first, second)]
+    assert prices[0] < 27.5 and prices[1] < prices[0]  # never the same sheet twice
+    assert set(first) == {"subject", "body", "term_sheets"}  # nothing the arena would refuse
+    run.last_call = {"sup:b": 0}
+    assert Run._keepalive(run, case, {}, "sup:a", events) is None  # the others are done: close instead

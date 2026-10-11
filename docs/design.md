@@ -30,7 +30,11 @@ the rule in code for each lesson: [`haggle-evidence.md`](./haggle-evidence.md).
   clause packages that cannot reach the goal only the cheapest stays on the menu (P02: agreed in round 1 either way).
 - **Claims are computed, not written.** `context.claims` turns facts.json into sentences the arena checks; the
   model places them with `[[c3]]`, code fits them into the sentence. An ID the arena counts once per case (all but
-  `quote:`/`offer:`) is spent for every thread once cited. Unknown IDs in the text are stripped.
+  `quote:`/`offer:`) is spent for every thread once cited. Unknown IDs in the text are stripped. Beyond the case
+  refs, `context.rival_quote` searches all facts for another company's lower quote on the case's single part (the
+  supplier's own quotes are `irrelevant` to the arena); off by default, since the API brief checks only case
+  quotes (`HAGGLE_RIVAL_QUOTES=1`). In a tender, `Run._keepalive` can keep an agreed leader's thread alive with new
+  lower sheets while the others bid on (`HAGGLE_TENDER_KEEPALIVE=1`, off by default).
 - **Empty menus are not optimality evidence**: a model failure, a slow decision (> 40 s), an internal error,
   or an infeasible target menu uses a guarded counter: a menu package 2% (in C) under their best sheet, on the
   structure that is best for us at that cost, never their own structure at a lower price.
@@ -59,7 +63,8 @@ picker. Tabs: **Negotiate** (pick a case, each supplier is a button into its fil
 **Formatted** (the run as readable e-mails, term sheets, claim verdicts, the agent's one-line reasons, result,
 the supplier's reasons), **Suppliers** (the file of any supplier, with its sessions), **Team** (what the arena API
 says about us: quota, best score per case with the session and rounds behind it, unplayed hosted cases (they
-count 0), practice board, every session, downloads, health) and **Settings** (provider,
+count 0), every team's score per final case side by side (our rank and gap to the best per case, from
+`/v1/results/{team}`; for people only, the agent never reads it), practice board, every session, downloads, health) and **Settings** (provider,
 model, base URL, endpoint, timeout, write-only API key, system prompt file). Only the tabs that show the running
 negotiation redraw while it runs; Team, Suppliers and Settings never refetch or lose typed edits. A run whose
 process stopped mid-way (its file still says running) is shown as stopped; once per server start the page asks the

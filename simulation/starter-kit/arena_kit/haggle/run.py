@@ -6,6 +6,7 @@ can end up in a file."""
 
 import hashlib
 import json
+import os
 import threading
 import time
 import traceback
@@ -13,7 +14,7 @@ import uuid
 from pathlib import Path
 
 from arena_kit.client import ArenaError
-from arena_kit.cost import must_haves_ok, total_cost
+from arena_kit.cost import complete_offer, must_haves_ok, total_cost
 from arena_kit.docs import read_document, standard_terms
 from arena_kit.play import RemoteTable, closing_move, latest, live_threads, moves_left, standing
 
@@ -23,6 +24,17 @@ from .context import analysis, claims, document, dossier, injection, names
 
 RESULT_KEYS = ("deal", "supplier_id", "terms", "c_open", "c_deal", "c_best", "score", "end_reason", "must_haves_ok")
 LAST_CALL = 2  # rounds each other bidder gets once the cheapest one agreed (RFQ)
+# With keep-alive probes the agreed leader is never silent (no timeouts), so the others can get more rounds: after
+# `agreed` a supplier answered every *different* lower sheet with its locked agreed sheet and never walked (~100
+# messages, P05 bidders up to round 10); the leader's 0.965 on P05 came from a 33-message tender, ours had 7.
+# Off by default until experiment E2b (docs/haggle-action-plan.md): HAGGLE_TENDER_KEEPALIVE=1.
+LAST_CALL_KEEPALIVE = 6
+
+
+def tender_keepalive():
+    return os.environ.get("HAGGLE_TENDER_KEEPALIVE", "0") in ("1", "true", "yes")
+
+
 FOCUS = 2  # an RFQ keeps negotiating with this many suppliers after round 1: the arena answers one call per session
 # at a time, so a third live thread makes each of the others wait past its 60 s
 SKIP_DOCS = ("delivery-schedule", "delivery_schedule")  # attachments the agent does not read: each fetch queues
@@ -259,7 +271,11 @@ class Run:
                 self.emit("decision", supplier=sup, round=rnd, action=action, message=message, **meta)
                 if action == "settle":
                     self._settled(table, case, threads, sup)
-                    return
+                    message = self._keepalive(case, threads, sup, events)
+                    if message is None:
+                        return
+                    action, meta = "send", {"rationale": "Keep the agreed leader's thread alive while the others bid."}
+                    self.emit("decision", supplier=sup, round=rnd, action="keepalive", message=message, **meta)
                 with self.gate:  # the arena answers one call per session at a time: queue here, not there
                     if self.result is not None or self.closing.is_set():
                         return
@@ -288,6 +304,30 @@ class Run:
             self.emit("error", supplier=sup, error=f"{type(exc).__name__}: {exc}", trace=traceback.format_exc()[-2000:])
         finally:
             self.active.discard(sup)
+
+    def _keepalive(self, case, threads, sup, events):
+        """A tender leader that agreed, while the others are on their last call: a sheet one tick under its agreed one
+        (a new sheet each time: the same sheet twice made a supplier walk), so its thread never times out. It answers
+        with its locked agreed sheet, or agrees to the lower one. None when there is nothing to keep alive."""
+        if not tender_keepalive() or self.result is not None or len(case["suppliers"]) < 2:
+            return None
+        if latest(events).get("status") != "agreed" or moves_left(case, events) <= 1:
+            return None
+        if not any(n > 0 for s, n in self.last_call.items() if s != sup and s in self.active):
+            return None
+        _, terms = standing(events)
+        if not terms.get("unit_price"):
+            return None
+        probes = self.__dict__.setdefault("probes", {})
+        sent = probes[sup] = probes.get(sup, 0) + 1
+        tick = max(0.01, round(terms["unit_price"] * 0.002, 2))
+        sheet = complete_offer(case, {**terms, "unit_price": round(terms["unit_price"] - tick * sent, 2)})
+        return {
+            "subject": f"Re: {latest(events).get('subject', case['title'])}"[:300],
+            "body": "Thank you for confirming. While we complete the award decision, could you meet the attached "
+            "price on the same terms?\n\nKind regards\nHollerau Pumpenwerke, Purchasing",
+            "term_sheets": [{"terms": sheet}],
+        }
 
     def _take_final_now(self, table, case, threads, sup):
         """A tender bidder's final offer, while we still hold the session: accept it at once if it is the cheapest
@@ -358,8 +398,9 @@ class Run:
             if latest(threads[sup]).get("status") not in ("agreed", "final_offer") and others:
                 return  # local exhaustion is not a reason to terminate the other bidders
             if latest(threads[sup]).get("status") == "agreed" and others and not self.last_call:
-                self.last_call = {s: LAST_CALL for s in others}
-                why = f"Cheapest bidder agreed: {LAST_CALL} more rounds for the others against its price."
+                n = LAST_CALL_KEEPALIVE if tender_keepalive() else LAST_CALL
+                self.last_call = {s: n for s in others}
+                why = f"Cheapest bidder agreed: {n} more rounds for the others against its price."
                 self.emit("decision", supplier=sup, round=None, action="last call", rationale=why)
                 return
             if any(n > 0 for s, n in self.last_call.items() if s in self.active and s != sup):
