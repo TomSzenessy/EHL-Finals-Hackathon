@@ -1,0 +1,14 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4N0C12QRTY3SY65C587J0ED",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "prompt": "/0/prompt.txt"
+    }
+  ]
+}

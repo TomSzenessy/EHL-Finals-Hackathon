@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4N0C12QRTY3SY65C587J0ED",
+  "session_id": "01a129fe-c9c8-7941-aa65-0a1d56432423",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-11T08:13:19.918922Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "agent": "Codex",
+  "model": "gpt-6.1-sol",
+  "turn_id": "c39de84df208",
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 499,
+      "user_lines_removed": 2,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "simulation/starter-kit/arena_kit/haggle/economics.py": 3,
+        "simulation/starter-kit/arena_kit/haggle/strategy.py": 25,
+        "simulation/starter-kit/runs/20261011-095451-8b09.jsonl": 22,
+        "simulation/starter-kit/runs/20261011-095451-a700.jsonl": 25,
+        "simulation/starter-kit/runs/20261011-095451-bf1f.jsonl": 22,
+        "simulation/starter-kit/runs/20261011-095451-e05c.jsonl": 31,
+        "simulation/starter-kit/runs/20261011-095451-fd45.jsonl": 16,
+        "simulation/starter-kit/runs/20261011-095452-575c.jsonl": 34,
+        "simulation/starter-kit/runs/20261011-095452-c541.jsonl": 28,
+        "simulation/starter-kit/runs/20261011-095452-d124.jsonl": 25,
+        "simulation/starter-kit/runs/20261011-100026-003b.jsonl": 22,
+        "simulation/starter-kit/runs/20261011-100026-1f59.jsonl": 16,
+        "simulation/starter-kit/runs/20261011-100026-48ab.jsonl": 22,
+        "simulation/starter-kit/runs/20261011-100026-61a7.jsonl": 31,
+        "simulation/starter-kit/runs/20261011-100026-9bc1.jsonl": 25,
+        "simulation/starter-kit/runs/20261011-100026-9c0e.jsonl": 28,
+        "simulation/starter-kit/runs/20261011-100026-9d43.jsonl": 21,
+        "simulation/starter-kit/runs/20261011-100026-dd97.jsonl": 33,
+        "simulation/starter-kit/runs/20261011-100504-0b47.jsonl": 6,
+        "simulation/starter-kit/runs/20261011-100504-0ecb.jsonl": 6,
+        "simulation/starter-kit/runs/20261011-100504-0f33.jsonl": 6,
+        "simulation/starter-kit/runs/20261011-100504-7857.jsonl": 6,
+        "simulation/starter-kit/runs/20261011-100504-a434.jsonl": 6,
+        "simulation/starter-kit/runs/20261011-100504-ba90.jsonl": 12,
+        "simulation/starter-kit/runs/20261011-100504-c87c.jsonl": 6,
+        "simulation/starter-kit/runs/20261011-100504-d1da.jsonl": 6,
+        "simulation/starter-kit/tests/test_haggle.py": 16
+      },
+      "user_removed_per_file": {
+        "simulation/starter-kit/arena_kit/haggle/economics.py": 2
+      }
+    }
+  ]
+}

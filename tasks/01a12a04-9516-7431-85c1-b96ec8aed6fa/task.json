@@ -1,0 +1,8 @@
+{
+  "tool_use_id": "01a12a04-9516-7431-85c1-b96ec8aed6fa",
+  "agent_id": "01a12a04-9516-7431-85c1-b96ec8aed6fa",
+  "subagent_type": "default",
+  "started_at": "2026-10-11T10:11:48.059596+02:00",
+  "completed_at": "2026-10-11T10:13:19.852302+02:00",
+  "transcript_unavailable_reason": "transcript path unresolvable"
+}
