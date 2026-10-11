@@ -1,0 +1,63 @@
+2-3 minutes animated pitch
+
+---
+
+can you set up the canva mcp "https://www.canva.dev/docs/apps/mcp/"
+
+---
+
+alright, you can use this api key for canva REDACTED and this client id OC-AaEp70f1AyTm
+
+---
+
+[Image #1]
+
+---
+
+what should i set as redirect url?
+
+---
+
+okay i saved it but it stayes on the same page
+
+---
+
+now it works, can you continue setting it up? once the mcp works, try to create a new canva presenstation in a clean and modern style (without redundant mini text) that is impressive visually appealing and modern. use the https://www.tacto.ai power pallette
+
+---
+
+color palette
+
+---
+
+This site can’t be reached
+127.0.0.1 refused to connect.
+Try:
+
+Checking the connection
+Checking the proxy and the firewall
+ERR_CONNECTION_REFUSED for "http://127.0.0.1:49227/callback/GVHLEROQ9wkl?REDACTED.REDACTED.REDACTED&REDACTED"
+
+---
+
+okay, can you make the slides even more clean by writing text that sounds more human and clean and less ai-ish, you can add animations, clean up the slides to be more targeted, and add speaker notes, also think again about if these are the things that stood out to you most in the last 24h that would impress the jury and be intriguinng
+
+---
+
+you can make the bar charts more apple / google design ish with maybe rounded corners, have more widget like style instead of the tons of seperators, so that everything looks modern and clean
+
+---
+
+what if you just use more of this Rectangle Rounded Basic Shape instead of real rectangles
+
+---
+
+it looks exactly the same as before
+
+---
+
+there are still no rounded corners, also arent there like any other cool insights that you can pack, instead of the 50 local run which is quite boring, some stuff where people say, whoa thats interesting
+
+---
+
+maybe some insights /breakthroughs findings that where added to the system prompt would also be interesting to include
