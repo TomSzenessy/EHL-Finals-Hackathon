@@ -1,0 +1,5 @@
+can you analyze what happened in this repo in the last 20h since beginning, and use remotion to create a presentation that shows charts, insights, and the coolest facts to impress the hackathon jury
+
+---
+
+2-3 minutes animated pitch

@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4MWMPZSP63YB3ACA6BS4JPH",
+  "strategy": "manual-commit",
+  "branch": "haggle-claim-groups-tender-timeouts",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/README.md",
+    "docs/design.md",
+    "docs/haggle-action-plan.md",
+    "docs/haggle-bug-list.md",
+    "docs/haggle-evidence.md",
+    "docs/haggle-probe-evidence.md",
+    "docs/haggle-probes.md",
+    "simulation/README.md",
+    "simulation/starter-kit/arena_kit/haggle/agent.py",
+    "simulation/starter-kit/arena_kit/haggle/economics.py",
+    "simulation/starter-kit/arena_kit/haggle/run.py",
+    "simulation/starter-kit/arena_kit/haggle/server.py",
+    "simulation/starter-kit/arena_kit/haggle/settings.py",
+    "simulation/starter-kit/arena_kit/haggle/static/app.css",
+    "simulation/starter-kit/arena_kit/haggle/static/app.js",
+    "simulation/starter-kit/arena_kit/haggle/static/index.html",
+    "simulation/starter-kit/arena_kit/haggle/strategy.py",
+    "simulation/starter-kit/runs/20261011-024553-038f.jsonl",
+    "simulation/starter-kit/runs/20261011-024553-1b3c.jsonl",
+    "simulation/starter-kit/runs/20261011-024553-3991.jsonl",
+    "simulation/starter-kit/runs/20261011-024553-415f.jsonl",
+    "simulation/starter-kit/runs/20261011-024553-7108.jsonl",
+    "simulation/starter-kit/runs/20261011-024553-720f.jsonl",
+    "simulation/starter-kit/tests/test_haggle.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 54722,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 540928,
+    "output_tokens": 2590,
+    "api_call_count": 13,
+    "subagent_tokens_complete": false
+  }
+}
