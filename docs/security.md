@@ -9,7 +9,9 @@ CI logic lives in tested repository code, not in workflow YAML: workflows
 check out the repository and call `make verify`, `make test-future`, or `repoctl ci <check>`
 (`tools/kit/ci.py`), and `make check` rejects long inline `run:` blocks. Pushes
 run CI on the default branch; pull requests run it for their commits. The verify job also installs one pinned tool from PyPI (`uv`, for the
-negotiation-workbench surface); a toolchain install is pinned to an exact version.
+negotiation-workbench surface) and the jury-presentation surface's npm packages with
+`npm ci --ignore-scripts` (exact lockfile versions, no install scripts run); a toolchain
+install is pinned to an exact version.
 
 Security is a property of the whole path, not a dependency scan. Start with a
 small threat model and make the safe path the default.
