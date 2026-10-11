@@ -103,7 +103,7 @@ tender cases, and the rest of the score rests on the existing agent.
 | 1-8 | E1-E5, E2b | 8 used | results in 4b | done 08:00 |
 | 9 | Commit B3, B5, B4 rename, the Team-tab table; B1 and B10 stay behind flags (off) | 0 | `make done` | done (`445ea04`, branch `haggle-claim-groups-tender-timeouts`) |
 | 10 | **Fix B12:** `Run.focus()` drops to the cheapest bidder after round 1 once a reply took over 35 s | 0 | unit test + offline P05 | done |
-| 10b | Merge the branch into `main` (the final runs from the submitted hash) | 0 | | before 11:30 |
+| 10b | Merge into `main` with Patrick's `1f55ac8` (fixed price on a rising index: P08 0.710/0.730, P18 0.641/0.610 hosted; never resend the same sheets) | 0 | 68 tests, offline 10 cases close | done |
 | 11 | 09:00 pre-flight: one P05 session through the final setup (it also tests B12) | 1 (needs OK) | no 409, score ≥ 0.865 | 09:00 |
 | 12 | Freeze, submit, start the final runner (`docs/live-final.md`) | 0 | | 11:30 / 11:45 |
 

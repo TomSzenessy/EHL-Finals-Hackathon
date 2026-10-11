@@ -78,23 +78,38 @@ class Settings:
     def prompt_path(self):
         return Path(self.stored().get("prompt_file") or DEFAULT_PROMPT_FILE)
 
+    def file_prompt(self):
+        """The prompt file's text, "" without one (it may be one `prompt` refuses)."""
+        try:
+            return self.prompt_path().read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+
     def prompt(self):
         """(text, source): the prompt file if it exists and is not empty, else the built-in prompt."""
-        try:
-            text = self.prompt_path().read_text(encoding="utf-8").strip()
-        except OSError:
-            text = ""
-        if text and '"offers"' not in text:  # written for the old answer format (the model set its own prices)
+        text = self.file_prompt()
+        if text and not usable(text):  # written for the old answer format (the model set its own prices)
             return SYSTEM, f'built-in ({self.prompt_path()} lacks the "offers" answer format)'
         return (text, str(self.prompt_path())) if text else (SYSTEM, "built-in")
 
     def save_prompt(self, text):
+        """Refuses a prompt the agent would ignore, so the page never shows one that does not run."""
+        if not usable(text):
+            raise ValueError(
+                'This prompt lacks the "offers" answer format (the model picks menu packages; code sets every price), '
+                "so the agent would ignore it and run the built-in prompt. Not saved."
+            )
         path = self.prompt_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text.strip() + "\n", encoding="utf-8")
 
     def reset_prompt(self):
         self.prompt_path().unlink(missing_ok=True)
+
+
+def usable(text):
+    """A prompt the agent can act on: it asks for the "offers" answer format."""
+    return '"offers"' in text
 
 
 def sha(text):

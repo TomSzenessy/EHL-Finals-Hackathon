@@ -254,6 +254,25 @@ def test_settings_change_the_model_and_the_prompt_file(pkg, tmp_path, monkeypatc
     assert reset["prompt_is_default"]
 
 
+def test_the_page_shows_the_prompt_that_runs_and_flags_stale_code(pkg, tmp_path, monkeypatch):
+    from arena_kit.haggle import server
+    from arena_kit.haggle.settings import Settings
+
+    monkeypatch.chdir(tmp_path)  # the prompt file path is relative
+    settings = Settings(tmp_path / "s.json")
+    client = TestClient(create_app(pkg, Arenas(pkg.facts), folder=tmp_path / "runs", settings=settings))
+    refused = client.put("/api/settings", json={"prompt": "Old format: reply with term_sheets you price yourself."})
+    assert refused.status_code == 422 and '"offers"' in refused.json()["detail"]
+    assert not (tmp_path / "prompts" / "system.md").exists()  # never saved, so never silently ignored
+    settings.prompt_path().parent.mkdir(parents=True, exist_ok=True)
+    settings.prompt_path().write_text("An old draft put there by hand.", encoding="utf-8")
+    shown = client.get("/api/settings").json()
+    assert shown["prompt_is_default"] and shown["ignored_prompt"] == "An old draft put there by hand."
+    assert not shown["stale_code"] and not client.get("/api/config").json()["stale_code"]
+    monkeypatch.setattr(server, "source_sha", lambda: "edited-since")  # the code on disk moved on
+    assert client.get("/api/config").json()["stale_code"] and client.get("/api/settings").json()["stale_code"]
+
+
 def test_an_rfq_with_two_suppliers_runs_both_threads_and_closes_cleanly(pkg, tmp_path):
     client = TestClient(create_app(pkg, Arenas(pkg.facts), ScriptedLLM(), folder=tmp_path))
     started = client.post("/api/runs", json={"mode": "offline", "case_id": "case:S02"}).json()
@@ -323,6 +342,25 @@ def test_a_supplier_that_holds_its_price_is_offered_its_price_on_better_terms(pk
     assert kind == "send" and meta["mode"] == "terms"
     sheet = message["term_sheets"][0]["terms"]
     assert sheet["unit_price"] == 368.0 and sheet["payment_days"] == 90  # their price, our longest payment term
+
+
+def test_the_same_sheets_are_never_sent_twice(pkg):
+    """Donautal walked away when our sheet repeated the last one (P08, score 0): the repeat moves a fifth of the way to
+    their price and the text follows it; a repeat that cannot move under their sheet settles instead."""
+    neg = _negotiator(pkg)
+    sheet = {"unit_price": 360.0, "payment_days": 30, "index_clause": None}
+    events = _thread()
+    neg.step(events)  # prepares the estimate
+    events = [*events, {"from": "buyer", "body": "x", "term_sheets": [{"terms": sheet}]},
+              *_reply([], "open", 366.0)[1:]]  # fmt: skip
+    out = ("send", {"subject": "s", "body": "We can confirm EUR 360.00 today.", "term_sheets": [{"terms": sheet}]}, {})
+    kind, message, meta = neg.no_repeat(events, out)
+    assert kind == "send" and meta["repeat_guard"]
+    assert message["term_sheets"][0]["terms"]["unit_price"] == 361.2 and "EUR 361.20" in message["body"]
+    at_theirs = {**sheet, "unit_price": 366.0}
+    events[-2]["term_sheets"] = [{"terms": at_theirs}]
+    kind, _, _ = neg.no_repeat(events, ("send", {"body": "", "term_sheets": [{"terms": at_theirs}]}, {}))
+    assert kind == "settle"
 
 
 def test_infeasible_target_menu_does_not_accept_opening(pkg, monkeypatch):
@@ -434,6 +472,60 @@ def test_the_clause_package_is_the_cheapest_one_for_us_in_a_health_charge_case(p
     clause = [m for m in items if m["terms"]["index_clause"]]
     assert len(clause) == 1 and clause[0]["terms"]["payment_days"] == 90
     assert 359 < clause[0]["terms"]["unit_price"] < 364
+
+
+AS = {"series": "AS-14404", "material_share": 0.45, "base_month": "2026-08"}
+P08 = {
+    "case_id": "case:P08", "parts": ["part:370010"], "suppliers": ["sup:70710"], "refs": [], "title": "P08",
+    "negotiable": ["unit_price", "index_clause", "payment_days", "contract_months"], "round_limit": 10,
+    "fixed_terms": {"lead_time_days": 10, "volume_per_year": 94800, "effective_date": "2027-01-01", "incoterm": "DAP",
+                    "tooling_eur": 0},
+    "term_options": {"index_clause": [None, *({**AS, "deadband_pct": d} for d in (0, 3, 5))],
+                     "payment_days": [14, 30, 45, 60, 90], "contract_months": [12, 24, 36]},
+    "buyer": {"need_per_year": 94800, "horizon_years": 2, "current_unit_price": 5.45, "fallback_unit_price": 5.72,
+              "interest_rate": 0.08, "reference_payment_days": 60, "need_lead_time_days": 10, "category_goal": "leverage",
+              "fallback_risk_pct": 3, "index_risk_pct": 1, "late_cost_per_day": 96, "cost_per_defect": 0,
+              "freight_eur_per_unit": {"EXW": 0.06, "FCA": 0.05, "DAP": 0.0}, "index_paths": {"AS-14404": 0.06},
+              "must_haves": [], "alternative": {"kind": "none", "terms": {}}},
+}  # fmt: skip
+P08_STANDING = {
+    "unit_price": 5.45,
+    "index_clause": {**AS, "deadband_pct": 5},
+    "payment_days": 30,
+    "contract_months": 36,
+}
+
+
+def test_a_rising_index_without_a_health_charge_holds_a_fixed_price(pkg):
+    """P08/P18: holding a fixed price made the supplier sweeten its own clause sheet (0.67-0.71 scripted) where equal-cost
+    clause packages ended on its 5%-deadband structure (median 0.56). The menu then has no clause package, and the
+    supplier's structure is offered without its clause."""
+    from arena_kit.haggle import economics as eco
+    from arena_kit.haggle import strategy as st
+
+    dos = dossier(pkg, "sup:70710", P08)
+    std = eco.full_standard(dos, {})
+    est = eco.estimate(P08, dos, std, ask=5.45)
+    assert eco.hold_fixed_price(P08, std, est, 5.45)
+    plan = eco.plan(P08, std, est, 5.45)
+    items = st.menu(P08, plan["target"]["c"], std, est, 5.45, [P08_STANDING], fixed_only=True)
+    assert items and all(m["terms"]["index_clause"] is None for m in items)
+    assert items[0]["own"] and (items[0]["terms"]["payment_days"], items[0]["terms"]["contract_months"]) == (30, 36)
+    assert any(m["terms"]["index_clause"] for m in st.menu(P08, plan["target"]["c"], std, est, 5.45, [P08_STANDING]))
+
+
+def test_the_clause_stays_on_the_menu_with_a_health_charge_or_a_falling_index(pkg):
+    """P02 (supplier-health charge): the clause package agreed in round 1 (0.735) stays. A falling index makes the clause
+    cheap for us: no reason to hold a fixed price."""
+    from arena_kit.haggle import economics as eco
+
+    dos = dossier(pkg, "sup:70510", P02)
+    std = eco.full_standard(dos, PDF_STANDARD)
+    assert not eco.hold_fixed_price(P02, std, eco.estimate(P02, dos, std, ask=370.96), 370.96)
+    falling = {**P08, "buyer": {**P08["buyer"], "index_paths": {"AS-14404": -0.06}}}
+    dos = dossier(pkg, "sup:70710", falling)
+    std = eco.full_standard(dos, {})
+    assert not eco.hold_fixed_price(falling, std, eco.estimate(falling, dos, std, ask=5.45), 5.45)
 
 
 def test_a_supplier_under_strain_keeps_our_rate_for_money(pkg):

@@ -47,6 +47,7 @@ const kv = (o) => `<div class="scroll" tabindex="0"><table><tbody>${Object.entri
 function paintChrome() {
   document.querySelectorAll("#mode button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.mode === S.mode));
   document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === S.tab));
+  $("#stale").hidden = !S.cfg?.stale_code;
   const sel = $("#runs");
   sel.innerHTML = S.runs.length ? S.runs.map((r) => `<option value="${esc(r.run_id)}" ${r.run_id === S.runId ? "selected" : ""}>${
     esc(`${when(r.started)} · ${r.mode} · ${r.case_id.replace("case:", "")} · ${r.status === "done" ? (r.deal ? `score ${(r.score ?? 0).toFixed(2)}` : "no deal") : r.status}`)}</option>`).join("")
@@ -363,14 +364,16 @@ async function viewSettings() {
       ${f("api_key", "API key", "", "password", c.has_key ? "A key is set. Leave empty to keep it; it is never shown again." : "No key set yet. Stored only in haggle_settings.json (git-ignored).")}
       <div class="tools"><button class="btn" id="save">Save</button><button class="btn ghost" id="test">Test the model</button><span id="msg" class="muted"></span></div></div>
     <h2>System prompt</h2><div class="card form">
-      <p class="muted">Source: <b>${esc(c.prompt_source)}</b> · ${esc(c.prompt_sha)}${c.prompt_is_default ? " · the built-in default" : ""}. It must keep the JSON answer format and the [[cN]] claim markers or the agent cannot act on it. Every run records the prompt hash and the full text.</p>
+      ${c.stale_code ? `<p class="stale">This server started before the code on disk changed: the prompt below may not be the one a fresh server runs. Restart <code>arena-haggle</code>.</p>` : ""}
+      <p class="muted">The prompt a new run uses. Source: <b>${esc(c.prompt_source)}</b> · ${esc(c.prompt_sha)}${c.prompt_is_default ? " · the built-in default" : ""}. It must keep the JSON answer format with <code>"offers"</code> and the [[cN]] claim markers or the agent cannot act on it (a prompt without them is not saved). Every run records the prompt hash and the full text.</p>
       ${f("prompt_file", "Prompt file", c.prompt_file, "text", "Saved here (tracked in git, so versions are shared). Delete or reset to use the built-in prompt.")}
-      <textarea id="prompt" rows="22" spellcheck="false">${esc(c.prompt)}</textarea>
+      <textarea id="prompt" rows="22" spellcheck="false" aria-label="Running system prompt">${esc(c.prompt)}</textarea>
+      ${c.ignored_prompt ? `<details class="stale"><summary>${esc(c.prompt_file)} is ignored: it lacks the "offers" answer format (the model no longer sets prices)</summary><pre>${esc(c.ignored_prompt)}</pre></details>` : ""}
       <div class="tools"><button class="btn" id="saveprompt">Save prompt</button><button class="btn ghost" id="reset">Reset to built-in</button></div></div>`;
   const val = (id) => $("#" + id).value;
   const note = (t) => { $("#msg").textContent = t; };
   const model = () => ({ provider: val("provider"), model: val("model"), base_url: val("base_url"), endpoint: val("endpoint"), timeout: val("timeout"), api_key: val("api_key"), prompt_file: val("prompt_file") });
-  const run = async (body, done) => { try { await api("/api/settings", body, "PUT"); note(done); S.cfg = await api("/api/config"); await viewSettings(); $("#msg").textContent = done; } catch (e) { note(e.message); } };
+  const run = async (body, done) => { try { await api("/api/settings", body, "PUT"); note(done); S.cfg = await api("/api/config"); await viewSettings(); $("#msg").textContent = done; } catch (e) { note(e.message); $("#msg").scrollIntoView({ block: "center" }); } };
   $("#save").onclick = () => run(model(), "Saved.");
   $("#saveprompt").onclick = () => run({ ...model(), prompt: val("prompt") }, "Prompt saved.");
   $("#reset").onclick = () => run({ ...model(), reset_prompt: true }, "Back to the built-in prompt.");

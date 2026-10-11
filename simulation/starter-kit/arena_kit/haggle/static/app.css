@@ -71,3 +71,5 @@ textarea { font: 13px/1.5 ui-monospace, Menlo, monospace; max-width: none; resiz
 .field small { font-size: 12.5px; }
 table.compare td.top { color: var(--ok); font-weight: 700; }
 table.compare .us { background: var(--code); }
+.stale { color: var(--warn); border: 1px solid var(--warn); border-radius: 6px; padding: 8px 12px; margin: 8px 16px; }
+.stale[hidden] { display: none; }

@@ -80,14 +80,17 @@ def price_for(case, base, c_goal, std, est, lo, hi, tol=0.0015):
     return math.floor(a * 100) / 100
 
 
-def structures(case):
-    """Every allowed combination of the negotiable fields except the price."""
+def structures(case, fixed_only=False):
+    """Every allowed combination of the negotiable fields except the price (`fixed_only`: none with an index
+    clause)."""
     import itertools
 
     fields = [f for f in case["negotiable"] if f != "unit_price"]
     options = [case.get("term_options", {}).get(f) or [None] for f in fields]
     for combo in itertools.product(*options):
-        yield dict(zip(fields, combo, strict=True))
+        base = dict(zip(fields, combo, strict=True))
+        if not (fixed_only and base.get("index_clause")):
+            yield base
 
 
 def _liking(terms, their):
@@ -106,26 +109,29 @@ def _liking(terms, their):
     return score
 
 
-def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE):
+def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE, fixed_only=False):
     """Equal-cost packages: for each structure the price that costs us `c_goal`. Packages with the same price and
     cost keep only the variant the supplier likes best (`_liking`). The supplier's own structure comes first, then
     the rest, best for the supplier first (by our estimate of what the deal is worth to it in cash). `their`: the
     supplier's sheets, its standing sheet first; we never offer more than it asked for the same structure, nor a
-    price more than 22% under its price (no supplier took that, and it reads as an insult)."""
+    price more than 22% under its price (no supplier took that, and it reads as an insult). `fixed_only`: no index
+    clause package (`economics.hold_fixed_price`); "their structure" is then theirs without the clause."""
     their = their or []
     standing_terms = complete_offer(case, their[0]) if their else {}
+    if fixed_only and standing_terms:
+        standing_terms = complete_offer(case, {**standing_terms, "index_clause": None})
     asks, groups = {}, {}
     for t in their:
         key = repr(sorted((k, repr(v)) for k, v in complete_offer(case, t).items() if k != "unit_price"))
         asks[key] = min(asks.get(key, math.inf), t.get("unit_price") or math.inf)
     at_ref = {}  # every allowed structure at their price: what it costs us if they counter on it at that level
-    for base in structures(case):
+    for base in structures(case, fixed_only):
         base = {**base, **free_for_them(case, std, base)}
         sheet0 = complete_offer(case, {**base, "unit_price": ref_price})
         if must_haves_ok(case, sheet0, std):
             at_ref[repr(base)] = eco.cost(case, sheet0, std, est)
     best_at_ref = min(at_ref.values(), default=math.inf)
-    for base in structures(case):
+    for base in structures(case, fixed_only):
         base = {**base, **free_for_them(case, std, base)}
         sheet0 = complete_offer(case, {**base, "unit_price": ref_price})
         if repr(base) not in at_ref:
@@ -178,17 +184,17 @@ def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE):
         # The goal lies below what any structure reaches inside the allowed price range (a deep anchor): offer the
         # cheapest reachable cost instead of nothing. An empty menu used to end in a counter on the supplier's own
         # 12-month structure, which it agreed to (P18: 5.98 for a 12-month contract, score 0.04).
-        reach = reachable_c(case, std, est, ref_price)
+        reach = reachable_c(case, std, est, ref_price, fixed_only)
         if math.isfinite(reach) and reach > c_goal:
-            return menu(case, reach * 1.0002, std, est, ref_price, their, size)
+            return menu(case, reach * 1.0002, std, est, ref_price, their, size, fixed_only)
     return out
 
 
-def reachable_c(case, std, est, ref_price):
+def reachable_c(case, std, est, ref_price, fixed_only=False):
     """The lowest C any allowed structure reaches at a price inside the menu's range (LOWEST_SHARE of the
     supplier's price up to its ask)."""
     best = math.inf
-    for base in structures(case):
+    for base in structures(case, fixed_only):
         base = {**base, **free_for_them(case, std, base)}
         if not must_haves_ok(case, complete_offer(case, {**base, "unit_price": ref_price}), std):
             continue

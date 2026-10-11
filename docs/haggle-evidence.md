@@ -4,7 +4,8 @@
 
 Practice replays, back office and controlled probes on the hosted arena, 2026-10-10/11 (about 300 sessions; the
 probe scripts are in `simulation/starter-kit/probes/`, their sessions under `runs/` with model `scripted`). Every
-row names the observation and the code that acts on it; the design itself is in [`design.md`](./design.md).
+row names the observation and the code that acts on it; the design itself is in [`design.md`](./design.md), the
+one-idea probe sessions and offline analyses in [`haggle-probes.md`](./haggle-probes.md).
 
 ## The supplier model in one page
 
@@ -62,8 +63,6 @@ row names the observation and the code that acts on it; the design itself is in 
 
 
 2026-10-11 log-mining rules: [action plan](./haggle-action-plan.md).
-
-Detailed night probes continue in [historical probe evidence](./haggle-probe-evidence.md).
 
 ## Current-system practice check — 2026-10-11 01:44 UTC
 

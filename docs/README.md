@@ -67,7 +67,7 @@ itself and this table cannot drift. Edit the line in the document, not here.
 | [`haggle-evidence.md`](./haggle-evidence.md) | What the hosted suppliers did and the rule in code for each lesson | Changing a negotiation rule, or checking why one exists. |
 | [`haggle-experiment-cards.md`](./haggle-experiment-cards.md) | Controlled negotiation experiment cards | Selecting a specific score hypothesis to test. |
 | [`haggle-experiment-plan.md`](./haggle-experiment-plan.md) | Evidence-backed negotiation experiment protocol and promotion criteria | Designing negotiation experiments to improve mean score without unapproved practice use. |
-| [`haggle-probe-evidence.md`](./haggle-probe-evidence.md) | Detailed historical supplier probes | Checking which tactics were already tested before designing another experiment. |
+| [`haggle-probes.md`](./haggle-probes.md) | Controlled probe sessions and offline analyses on the hosted suppliers, one row each | Planning a probe, or checking whether an idea was already tried. |
 | [`haggle-strategy-analysis.md`](./haggle-strategy-analysis.md) | Dated practice scoring analysis and latest-suite results | Tracing negotiation strategy hypotheses to session evidence and counterfactual calculations. |
 | [`security.md`](./security.md) | Secure implementation baseline | Auth, secrets, CI, dependencies, deployment, or untrusted input changes. |
 | [`architecture/README.md`](./architecture/README.md) | Current structure, seams, kit module map, and design rules | Adding a surface, changing dependencies, or locating ownership. |

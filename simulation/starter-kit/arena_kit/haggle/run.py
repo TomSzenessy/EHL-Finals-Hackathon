@@ -61,6 +61,15 @@ def code_version():
         return None
 
 
+def source_sha():
+    """A hash of the arena_kit sources on disk. A server compares it with the one it started with: Python keeps the
+    code it imported, so after an edit or a pull the page would show and run stale code (an old built-in prompt)."""
+    digest = hashlib.sha256()
+    for path in sorted(Path(__file__).parent.parent.rglob("*.py")):
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:10]
+
+
 def terms_of(threads, sup, sheet_id):
     """The terms of a sheet a supplier sent in this thread, by its id."""
     for m in threads[sup]:

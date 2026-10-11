@@ -46,7 +46,8 @@ key, no quota; it only teaches the API, not the real suppliers).
    supplier's best sheet that keep us inside the band just under its latest counter where suppliers agree. Every allowed structure is priced to that same cost (the offer menu), except structures that at the
    supplier's price would cost us over 5% more than the best one (a short contract over a longer need). Where the
    supplier-health charge keeps a clause package above that cost, only its cheapest variant is offered (the longest
-   payment term: money is worth less to a supplier than to us unless it is under strain).
+   payment term: money is worth less to a supplier than to us unless it is under strain). On a rising index without
+   that charge the menu holds fixed prices only; the supplier's own clause sheets are still accepted when cheapest.
 3. The model picks one to three menu packages and the verified arguments (strongest first, a new one each round)
    and writes a friendly e-mail, leading with the lever that fits the case type. It never sets a price.
 4. `agreed` and `final_offer` are accepted at once: a supplier never goes below a sheet it agreed to, and every
@@ -57,7 +58,8 @@ key, no quota; it only teaches the API, not the real suppliers).
    gets two last rounds against its price; a
    final offer from the cheapest bidder is accepted at once, before any other call (the arena answers one call
    per session at a time, and a final offer left waiting past 60 s walks away). After round 1 every offer keeps a
-   package on the supplier's cheapest-for-us structure.
+   package on the supplier's cheapest-for-us structure, and never repeats the sheets of our last message (a repeat
+   moves toward their price, or the thread settles).
 
 An infeasible target menu triggers a guarded counter rather than acceptance of an opening quote. In an RFQ,
 a bidder with an open counter cannot terminate other active bidders merely because its own strategy stops.

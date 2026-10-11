@@ -18,8 +18,8 @@ from .agent import SYSTEM
 from .arena import MODES, Arenas
 from .context import SUPPLIER_ID, dossier, names
 from .llm import LLM, LLMError
-from .run import RESULT_KEYS, Run
-from .settings import Settings, sha
+from .run import RESULT_KEYS, Run, source_sha
+from .settings import Settings, sha, usable
 
 STATIC = Path(__file__).parent / "static"
 RUN_ID = re.compile(r"^[\w-]{1,60}$")
@@ -102,6 +102,8 @@ def create_app(
     lock = threading.Lock()
     app = FastAPI(title="haggle", docs_url=None, redoc_url=None, openapi_url=None)
     where = lambda: Path(folder) if folder else runs_folder()  # noqa: E731
+    booted = source_sha()  # the code this process imported; the disk may move on (see `stale`)
+    stale = lambda: source_sha() != booted  # noqa: E731
 
     @app.exception_handler(ArenaError)
     async def arena_error(_, exc: ArenaError):
@@ -120,6 +122,7 @@ def create_app(
     def config():
         return {
             "prompt_sha": sha(settings.prompt()[0]),  # the prompt a new run would use
+            "stale_code": stale(),  # the code on disk changed since this server started: restart it
             "model": current().model,
             "llm_configured": current().configured,
             "data": pkg is not None,
@@ -215,6 +218,8 @@ def create_app(
             "prompt_sha": sha(text),
             "default_prompt": SYSTEM,
             "prompt_is_default": text == SYSTEM,
+            "ignored_prompt": "" if usable(file := settings.file_prompt()) else file,  # a file the agent refuses
+            "stale_code": stale(),
         }
 
     @app.put("/api/settings")
@@ -223,7 +228,10 @@ def create_app(
         if body.get("reset_prompt"):
             settings.reset_prompt()
         elif isinstance(body.get("prompt"), str) and body["prompt"].strip():
-            settings.save_prompt(body["prompt"])
+            try:
+                settings.save_prompt(body["prompt"])
+            except ValueError as e:
+                raise ArenaError(422, str(e)) from None
         return get_settings()
 
     @app.post("/api/settings/test")
