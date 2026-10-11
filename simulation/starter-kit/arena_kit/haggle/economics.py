@@ -27,7 +27,7 @@ SHOULD_COST_BIAS = 0.98
 # is cheaper for us (P02: 361.50 at 90 days with the clause, agreed in round 1, 0.735 against 0.659 at 45 days).
 # A supplier under financial strain keeps our rate: cash is dearer to it.
 SUPPLIER_RATE_DISCOUNT = 0.01
-STRAIN_TOPICS = {"restructuring", "credit_downgrade", "credit_watch", "short_time_work"}
+STRAIN_TOPICS = {"restructuring", "credit_downgrade", "credit_watch", "short_time_work", "insolvency"}
 
 
 def full_standard(dos, pdf_standard):

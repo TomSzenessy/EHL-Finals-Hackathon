@@ -42,6 +42,8 @@ the rule in code for each lesson: [`haggle-evidence.md`](./haggle-evidence.md).
   step still to come ("clarify this internally", "needs approval from our management") we give only a tenth of the
   gap and never settle (`agent.OWED`, `HAGGLE_OWED_HOLD=0` turns it off). Evidence: our hosted runs, informed by public
   write-ups from the event, recorded in `docs/haggle-bug-list.md`.
+  Capacity-tight also reads
+  big-order and chip-shortage news, and a later supply-normalises item lifts it; insolvency news counts as strain.
 - **Claims are computed, not written.** `context.claims` turns facts.json into sentences the arena checks; the
   model places them with `[[c3]]`, code fits them into the sentence. An ID the arena counts once per case (all but
   `quote:`/`offer:`) is spent for every thread once cited. Unknown IDs in the text are stripped. Beyond the case

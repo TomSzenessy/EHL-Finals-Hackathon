@@ -32,7 +32,8 @@ OWED = re.compile(
     re.I,
 )
 OWED_HOLD = os.environ.get("HAGGLE_OWED_HOLD") != "0"
-TIGHT_NEWS = {"allocation", "full_order_book"}
+TIGHT_NEWS = {"allocation", "full_order_book", "big_order", "chip_shortage"}
+EASED_NEWS = {"supply_normalises"}  # Sunday release topic: a later one of these lifts the tightness
 TIGHT_FIRST_ASK = float(os.environ.get("HAGGLE_TIGHT_FIRST_ASK", "0.92"))
 OWED_STEP = 0.1  # share of the gap to their sheet we still give while a step is owed
 DECISION_BUDGET_S = 40  # the arena allows 60 s from the supplier's reply; an RFQ may queue behind another thread
@@ -563,7 +564,11 @@ class Negotiator:
         if len(self.case.get("suppliers", [])) > 1:
             return False
         news = (getattr(self, "dossier", None) or {}).get("news") or []
-        return self.case.get("type") == "capacity" or any(n.get("topic") in TIGHT_NEWS for n in news)
+        topics = [n.get("topic") for n in sorted(news, key=lambda n: n.get("date") or "", reverse=True)]
+        latest = next((t for t in topics if t in TIGHT_NEWS | EASED_NEWS), None)
+        if latest in EASED_NEWS:
+            return False
+        return self.case.get("type") == "capacity" or latest in TIGHT_NEWS
 
     def offer_menu(self, events, std, goal, mode):
         if mode == "terms":
