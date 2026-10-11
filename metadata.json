@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4N0RPXB6B91JEDEQJSB3ZN4",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "docs/design.md",
+    "simulation/starter-kit/arena_kit/haggle/agent.py",
+    "simulation/starter-kit/arena_kit/haggle/economics.py",
+    "simulation/starter-kit/arena_kit/haggle/strategy.py",
+    "simulation/starter-kit/runs/20261011-100026-003b.jsonl",
+    "simulation/starter-kit/runs/20261011-100026-1f59.jsonl",
+    "simulation/starter-kit/runs/20261011-100026-48ab.jsonl",
+    "simulation/starter-kit/runs/20261011-100026-61a7.jsonl",
+    "simulation/starter-kit/runs/20261011-100026-9bc1.jsonl",
+    "simulation/starter-kit/runs/20261011-100026-9c0e.jsonl",
+    "simulation/starter-kit/runs/20261011-100026-9d43.jsonl",
+    "simulation/starter-kit/runs/20261011-100026-dd97.jsonl",
+    "simulation/starter-kit/tests/test_haggle.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 292741,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 17190784,
+    "output_tokens": 48693,
+    "api_call_count": 214,
+    "subagent_tokens": {
+      "input_tokens": 9321,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 353920,
+      "output_tokens": 693,
+      "api_call_count": 5
+    },
+    "subagent_tokens_complete": true
+  }
+}
