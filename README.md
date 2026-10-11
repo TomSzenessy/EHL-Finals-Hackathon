@@ -33,7 +33,7 @@ The final runner imports the code once when it starts, so it must start **after*
 4. **11:45, at the latest 11:55, start the runner** in its own terminal (power cable in, lid open, stable network):
 
    ```bash
-   caffeinate -dimsu uv run --extra ui arena-haggle-final 2>&1 | tee -a final.log
+   cd simulation/starter-kit && caffeinate -dimsu uv run --extra ui arena-haggle-final 2>&1 | tee -a final.log
    ```
 
    The first log line must read `haggle final: model <model>, prompt built-in, data .../simulation/data, release
