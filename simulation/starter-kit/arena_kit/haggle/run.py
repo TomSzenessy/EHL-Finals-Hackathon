@@ -35,6 +35,11 @@ def tender_keepalive():
     return os.environ.get("HAGGLE_TENDER_KEEPALIVE", "0") in ("1", "true", "yes")
 
 
+# With slow suppliers even two live threads miss the clock: a bidder whose reply arrived waits behind the other's call
+# (2026-10-11 morning: replies up to 55 s against 32 s overnight; both P05 runs got a 409 timeout and an early final
+# offer, 0.824 and 0.762 against 0.865). Once the slowest reply passes this, only the cheapest bidder stays live; the
+# others' standing offers are still cited to it.
+SLOW_REPLY_S = 35
 FOCUS = 2  # an RFQ keeps negotiating with this many suppliers after round 1: the arena answers one call per session
 # at a time, so a third live thread makes each of the others wait past its 60 s
 SKIP_DOCS = ("delivery-schedule", "delivery_schedule")  # attachments the agent does not read: each fetch queues
@@ -83,6 +88,7 @@ class Run:
     ):
         self.deadline, self.case_file = deadline, case  # final: a callable giving the wave's cap (time.time())
         self.slowest = 0.0
+        self.slowest_reply = 0.0  # the longest a supplier took to answer one of our messages, seconds
         self.id = f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:4]}"
         self.path = Path(folder) / f"{self.id}.jsonl"
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -264,7 +270,7 @@ class Run:
                         supplier=sup,
                         round=rnd,
                         action="dormant",
-                        rationale=f"Not among the {FOCUS} best offers: stop so the leading threads answer in time.",
+                        rationale=f"Not among the {self.focus()} best offers: stop so the leaders answer in time.",
                     )
                     return
                 action, message, meta = neg.step(events, self._rivals(case, threads, sup), dos)
@@ -279,8 +285,10 @@ class Run:
                 with self.gate:  # the arena answers one call per session at a time: queue here, not there
                     if self.result is not None or self.closing.is_set():
                         return
+                    sent_at = time.monotonic()
                     try:
                         reply = table.send(sup, message)
+                        self.slowest_reply = max(self.slowest_reply, time.monotonic() - sent_at)
                     except ArenaError as exc:
                         if exc.status != 409:
                             raise
@@ -367,9 +375,9 @@ class Run:
         return bool(cap) and time.time() > cap - max(self.CLOSE_BEFORE_CAP_S, self.slowest + self.ROUND_MARGIN_S)
 
     def _out_of_focus(self, threads, sup):
-        """In an RFQ with more than FOCUS live threads, is this supplier's best sheet outside the FOCUS cheapest?"""
+        """In an RFQ with more live threads than `focus()`, is this supplier's best sheet outside the cheapest ones?"""
         live = [s for s in live_threads(threads) if s in self.active and s not in self.dormant]
-        if len(live) <= FOCUS:
+        if len(live) <= self.focus():
             return False
         ranked = []
         for s in live:
@@ -379,7 +387,11 @@ class Run:
             std = eco.full_standard(neg.dossier, standard_terms(threads[s]))
             ranked.append((neg.their_c(threads[s], std), s))
         ranked.sort()
-        return sup not in [s for _, s in ranked[:FOCUS]]
+        return sup not in [s for _, s in ranked[: self.focus()]]
+
+    def focus(self):
+        """How many bidders stay live after round 1: one once suppliers answer slowly (B12)."""
+        return 1 if self.slowest_reply > SLOW_REPLY_S else FOCUS
 
     def _settled(self, table, case, threads, sup):
         """A thread is done. Alone, the case closes when every thread is done. In an RFQ, when the cheapest bidder has

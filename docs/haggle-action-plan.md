@@ -101,8 +101,9 @@ tender cases, and the rest of the score rests on the existing agent.
 | Step | What | Practice sessions | Pass criterion | When |
 |---|---|---:|---|---|
 | 1-8 | E1-E5, E2b | 8 used | results in 4b | done 08:00 |
-| 9 | Commit B3, B5, B4 rename, the Team-tab table; B1 and B10 stay behind flags (off) | 0 | `make done` | now |
-| 10 | **Fix B12:** in a tender, when the slowest supplier reply plus our decision time exceeds about 40 s, keep only the cheapest bidder live after round 1 (`run.py` `FOCUS` 2 to 1, adaptive) | 0 | unit test + offline P05 | before 09:00 |
+| 9 | Commit B3, B5, B4 rename, the Team-tab table; B1 and B10 stay behind flags (off) | 0 | `make done` | done (`445ea04`, branch `haggle-claim-groups-tender-timeouts`) |
+| 10 | **Fix B12:** `Run.focus()` drops to the cheapest bidder after round 1 once a reply took over 35 s | 0 | unit test + offline P05 | done |
+| 10b | Merge the branch into `main` (the final runs from the submitted hash) | 0 | | before 11:30 |
 | 11 | 09:00 pre-flight: one P05 session through the final setup (it also tests B12) | 1 (needs OK) | no 409, score ≥ 0.865 | 09:00 |
 | 12 | Freeze, submit, start the final runner (`docs/live-final.md`) | 0 | | 11:30 / 11:45 |
 

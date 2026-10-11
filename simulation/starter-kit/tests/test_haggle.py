@@ -573,3 +573,12 @@ def test_an_agreed_tender_leader_is_kept_alive_with_new_lower_sheets_only_when_e
     assert set(first) == {"subject", "body", "term_sheets"}  # nothing the arena would refuse
     run.last_call = {"sup:b": 0}
     assert Run._keepalive(run, case, {}, "sup:a", events) is None  # the others are done: close instead
+
+
+def test_a_tender_narrows_to_the_cheapest_bidder_once_suppliers_answer_slowly():
+    from types import SimpleNamespace
+
+    from arena_kit.haggle.run import FOCUS, Run
+
+    assert Run.focus(SimpleNamespace(slowest_reply=20.0)) == FOCUS
+    assert Run.focus(SimpleNamespace(slowest_reply=55.0)) == 1  # 2026-10-11 morning: 409 timeouts at 55 s replies
