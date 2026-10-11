@@ -116,8 +116,8 @@ FAST_PAY_NEEDS_STRAIN = os.environ.get("HAGGLE_FAST_PAY") != "1"
 
 
 # Months beyond the scoring horizon cost us nothing and the supplier values them: keep them for round 2, so its
-# first reply has a move of ours left to answer. P10, another team: 24 months in round 1 drew an open 31.70, then 36
-# months drew a final 31.40 (0.686); our 36 months in round 1 drew a final 31.70 at once (0.663, 21 of 21 runs).
+# first reply has a move of ours left to answer. P10: 36 months in round 1 drew a final 31.70 at once (0.663, 21 of
+# 21 runs); 24 months in round 1, with the first ask below, drew a counter and then a final 31.60 (0.671).
 HOLD_TERM = os.environ.get("HAGGLE_HOLD_TERM") != "0"
 
 

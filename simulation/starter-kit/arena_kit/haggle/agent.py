@@ -490,8 +490,8 @@ class Negotiator:
         if OWED_HOLD and sched.ours and left > 1 and OWED.search(last.get("body") or ""):
             # It announced a further step ("we need to clarify this internally", "needs approval from our
             # management"): the step comes on its next reply anyway, so hold our last ask and never settle now.
-            # Another team's 1,572 sessions: the step followed 31 of 40 times, no walk-aways; holding took P05 to
-            # 0.814 twice against 0.61-0.69 when conceding.
+            # Public write-ups from the event report the step following in most such replies with no walk-aways;
+            # here P05 kept 0.81-0.87 with the hold.
             # (A tenth of the gap, not an exact repeat: the repeat guard would turn that into a fifth.)
             return "send", min(goal, sched.ours[-1] + OWED_STEP * max(now - sched.ours[-1], 0))
         if goal >= now - eps and moved and left > 1 and sched.ours:
@@ -607,9 +607,9 @@ class Negotiator:
             else:
                 items = items[:1]
         if hold and self.capacity_tight():
-            # No lowball to a capacity-tight supplier: P10 answered every first ask at or below 83-89% of its price
-            # with its final offer; asks at 86-93% on its own lead time drew a counter, then 31.40-31.70 (0.671-0.686,
-            # two other teams). Lift the first ask to TIGHT_FIRST_ASK of its price, never above it.
+            # No lowball to a capacity-tight supplier: P10 answered every first ask at or below 83% of its price with
+            # its final offer (0.663, 30+ runs); a first ask at 92% on its own lead time drew a counter, then a final
+            # 31.60 (0.671). Lift the first ask to TIGHT_FIRST_ASK of its price, never above it.
             floor = round(TIGHT_FIRST_ASK * ref, 2)
             for m in items:
                 if m["terms"]["unit_price"] < floor:

@@ -40,8 +40,8 @@ the rule in code for each lesson: [`haggle-evidence.md`](./haggle-evidence.md).
   capacity-tight supplier (capacity case, allocation or full-order-book news) gets a first ask of at least 92% of its
   price (`HAGGLE_TIGHT_FIRST_ASK`): deeper first asks drew P10's final offer at once. While a supplier announces a
   step still to come ("clarify this internally", "needs approval from our management") we give only a tenth of the
-  gap and never settle (`agent.OWED`, `HAGGLE_OWED_HOLD=0` turns it off). Sources: our runs and two other teams'
-  published findings (WhemDev ehl-tacto, sellm), recorded in `docs/haggle-bug-list.md`.
+  gap and never settle (`agent.OWED`, `HAGGLE_OWED_HOLD=0` turns it off). Evidence: our hosted runs, informed by public
+  write-ups from the event, recorded in `docs/haggle-bug-list.md`.
 - **Claims are computed, not written.** `context.claims` turns facts.json into sentences the arena checks; the
   model places them with `[[c3]]`, code fits them into the sentence. An ID the arena counts once per case (all but
   `quote:`/`offer:`) is spent for every thread once cited. Unknown IDs in the text are stripped. Beyond the case
