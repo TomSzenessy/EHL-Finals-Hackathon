@@ -1,0 +1,9 @@
+2-3 minutes animated pitch
+
+---
+
+can you set up the canva mcp "https://www.canva.dev/docs/apps/mcp/"
+
+---
+
+alright, you can use this api key for canva REDACTED and this client id OC-AaEp70f1AyTm
