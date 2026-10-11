@@ -44,7 +44,8 @@ the rule in code for each lesson: [`haggle-evidence.md`](./haggle-evidence.md).
   must-have fields kept, before the close would walk away. All API clients of one key share its per-second limit.
 - **RFQs**: the arena answers one call per session at a time, so parallel threads queued past their 60 s (P05
   timed out twice). Every call of a session goes through one gate; after round 1 only the two cheapest bidders
-  keep negotiating; a rival's lower standing offer is cited to the others; the target is the cheapest any bidder
+  keep negotiating, and only the cheapest once a supplier reply took over 35 s (`Run.focus`: morning replies of up
+  to 55 s cost both P05 runs a 409); a rival's lower standing offer is cited to the others; the target is the cheapest any bidder
   allows; when the cheapest bidder agrees, the others get two last rounds against its price; a cheapest bidder that
   only sent a final offer is taken at once (no keep-alive messages). A non-firm bidder cannot close the auction
   while another bidder remains active; its local exhaustion leaves the other threads running (#4).
