@@ -73,7 +73,9 @@ uv run --extra ui arena-haggle-final   # start before wave 1, leave it running u
 ```
 
 Its first log line names the model, prompt, data and Sunday release folder (`release None`: the release is not
-in place; see the pre-final checklist in the root `README.md`). It polls only the final case list, plays each wave's cases in parallel and closes every case on its cheapest
+in place; see the pre-final checklist in the root `README.md`). The release is committed in
+`data/release-sunday/` (downloaded 2026-10-11; package v1 unchanged): its letters and news reach each supplier's
+prompt, the market memo only summarises them. It polls only the final case list, plays each wave's cases in parallel and closes every case on its cheapest
 standing sheet 75 s before the wave's 8-minute cap. Each case is recorded under `runs/` and shows on the page.
 If it crashes, start it again: a case already opened is picked up from the arena (the session the 409 names,
 or our own open session of that case). All cases share the key's per-second call limit.

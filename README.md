@@ -22,7 +22,7 @@ uv run pytest -q                          # tests
 The final runner imports the code once when it starts, so it must start **after** the last commit and must be
 **polling before 12:00**; from 12:00 nobody touches the machine. All commands from `simulation/starter-kit`.
 
-1. **By 11:30, the Sunday release:** `uv run arena data --out ../data/sunday`, then move the folder holding the
+1. **By 11:30, the Sunday release** (done 10:50, committed in `simulation/data/release-sunday`): `uv run arena data --out ../data/sunday`, then move the folder holding the
    release's `facts.json` to `../data/release-sunday` (or `export ARENA_RELEASE=<that folder>`). Check:
    `uv run --extra ui python -c "from arena_kit.haggle.__main__ import find_data; print(find_data().release)"`
    prints the folder, not `None`.
