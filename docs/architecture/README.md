@@ -15,6 +15,7 @@ Maintain one table when the project has more than one surface:
 | template | . | TomSzenessy | Repository governance tools | Deterministic kit checks | make check and kit tests |
 | template-bootstrap | . | — | Placeholder surface a fresh copy of this kit declares until its first product surface replaces it | Kit checks | make check |
 | negotiation-workbench | simulation | TomSzenessy | starter-kit/arena_kit/haggle; arena-haggle | A recorded run: every arena and model call inspectable, claims verified, score against the arena | uv run --directory starter-kit --extra ui pytest -q from simulation |
+| jury-presentation | presentation | TomSzenessy | src/index.tsx; Remotion JuryPitch composition | Independent slide review, log-backed charts, decoded 150-second H.264 export | npm exec -- tsc --noEmit from presentation |
 
 `project.toml` is the machine-readable source for paths and commands. This table
 is the human navigation view, not a second command catalog.

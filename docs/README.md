@@ -70,6 +70,7 @@ itself and this table cannot drift. Edit the line in the document, not here.
 | [`haggle-probes.md`](./haggle-probes.md) | Controlled probe sessions and offline analyses on the hosted suppliers, one row each | Planning a probe, or checking whether an idea was already tried. |
 | [`haggle-strategy-analysis.md`](./haggle-strategy-analysis.md) | Dated practice scoring analysis and latest-suite results | Tracing negotiation strategy hypotheses to session evidence and counterfactual calculations. |
 | [`security.md`](./security.md) | Secure implementation baseline | Auth, secrets, CI, dependencies, deployment, or untrusted input changes. |
+| [`../presentation/ANALYSIS.md`](../presentation/ANALYSIS.md) | Jury story and dated metric source audit | Reviewing claims in the Remotion hackathon presentation. |
 | [`architecture/README.md`](./architecture/README.md) | Current structure, seams, kit module map, and design rules | Adding a surface, changing dependencies, or locating ownership. |
 
 ### Product, privacy, and launch

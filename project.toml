@@ -27,7 +27,7 @@ is_template = true
 # Template-only material that `make init` removes from new projects; relative
 # links to removed files are rewritten to `source` so nothing breaks.
 source = "https://github.com/TomSzenessy/AI_TEMPLATE"
-prune = ["docs/research/**", ".agents/trials/**", "simulation/**", "docs/design.md", "docs/haggle-evidence.md", "docs/handoffs/**", "docs/product/ui-reviews.md"]
+prune = ["presentation/**", "docs/research/**", ".agents/trials/**", "simulation/**", "docs/design.md", "docs/haggle-evidence.md", "docs/handoffs/**", "docs/product/ui-reviews.md"]
 
 [vision]
 status = "accepted"
@@ -228,3 +228,13 @@ purpose = "Adapted from upstream replica-brand: name and vet your own identity, 
 reviewed_on = "2026-10-07"
 permissions = "project-local"
 rollback = "remove the .agents/skills/brand-sweep directory and its [[skills]] entry"
+
+[[surfaces]]
+id = "jury-presentation"
+path = "presentation"
+kind = "media"
+owner = "TomSzenessy"
+status = "active"
+quality_oracle = "Independent review of nine 1080p slides, source-log metric audit, and a decoded 150-second H.264 export"
+critic_evidence = ["presentation/REVIEW.md"]
+verification = [["npm", "exec", "--", "tsc", "--noEmit"]]

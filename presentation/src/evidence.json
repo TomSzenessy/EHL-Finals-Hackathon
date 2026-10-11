@@ -1,0 +1,496 @@
+{
+  "snapshot": {
+    "cutoffUtc": "2026-10-10T11:08:11.852037+00:00",
+    "capturedUtc": "2026-10-11T07:08:11.852037+00:00",
+    "timezone": "Europe/Berlin",
+    "firstCommit": "2026-10-10T12:21:18+02:00",
+    "projectFirstCommit": "2026-10-10T17:20:54+02:00",
+    "windowHours": 20,
+    "sourceHead": "adb9b45",
+    "note": "Initial template is outside rolling 20h. Entire setup is inside but excluded from project activity. Frozen before presentation work."
+  },
+  "commitCount": 37,
+  "projectCommitCount": 36,
+  "commits": [
+    {
+      "sha": "9c2a75e82b43b4e9c61917f9868c91f15323020f",
+      "at": "2026-10-10T13:33:43+02:00",
+      "subject": "added entire",
+      "projectWork": false
+    },
+    {
+      "sha": "63038da215ad3339e80b735b913cd6a16bd057f2",
+      "at": "2026-10-10T17:20:54+02:00",
+      "subject": "Add haggle: one haggling agent plus a page to inspect it",
+      "projectWork": true
+    },
+    {
+      "sha": "49b9772fa8115510558727095a2b2c315c888801",
+      "at": "2026-10-10T17:27:09+02:00",
+      "subject": "Add a supplier button per case and new-machine setup notes",
+      "projectWork": true
+    },
+    {
+      "sha": "46c183a7433a31cda9cb6bd2c12f886e394efc98",
+      "at": "2026-10-10T18:13:29+02:00",
+      "subject": "Make the haggler optimise the real score and add Team and Settings tabs",
+      "projectWork": true
+    },
+    {
+      "sha": "d28e7c7b5c8e19d971afb2031fa32120f40d24f3",
+      "at": "2026-10-10T19:07:38+02:00",
+      "subject": "Let code set every price and close on agreed or final offers",
+      "projectWork": true
+    },
+    {
+      "sha": "20f2c176b766b6dabbfa95783231b6fc4fbd0cfd",
+      "at": "2026-10-10T19:11:07+02:00",
+      "subject": "Add case-type levers and honest persuasion rules to the system prompt",
+      "projectWork": true
+    },
+    {
+      "sha": "c958465c632a99368feeb547a3899b04e143f219",
+      "at": "2026-10-10T19:11:37+02:00",
+      "subject": "Document the case-type levers in the system prompt",
+      "projectWork": true
+    },
+    {
+      "sha": "39e1c7ab631bc82c2218618899277dc4d12fcd31",
+      "at": "2026-10-10T19:33:11+02:00",
+      "subject": "Price inside the suppliers' acceptance band and run RFQ auctions",
+      "projectWork": true
+    },
+    {
+      "sha": "0fead3b17f48ecccb9a12647a6bbae7ccd18ec43",
+      "at": "2026-10-10T19:48:31+02:00",
+      "subject": "Trade terms with price-rigid suppliers and keep accepted facts flowing",
+      "projectWork": true
+    },
+    {
+      "sha": "d26f79ba07aab7fb18218579eff04372551c3f1a",
+      "at": "2026-10-10T19:53:39+02:00",
+      "subject": "Mark second-of-a-kind claims weak: suppliers count one fact per kind",
+      "projectWork": true
+    },
+    {
+      "sha": "cb53689ff25292c633ecce40256a78fde0f85785",
+      "at": "2026-10-10T20:16:33+02:00",
+      "subject": "push (not working) so patrick can continue",
+      "projectWork": true
+    },
+    {
+      "sha": "7df04bc4b7b2d9c69eaf733e53fc4b614445c68d",
+      "at": "2026-10-10T20:25:04+02:00",
+      "subject": "Fix premature RFQ closure and preserve strategy handover",
+      "projectWork": true
+    },
+    {
+      "sha": "ef94a4cf9de3d348c67bf0e699130ff9fee7a068",
+      "at": "2026-10-10T20:25:32+02:00",
+      "subject": "Record checkpoint receipt and remaining verification gates",
+      "projectWork": true
+    },
+    {
+      "sha": "fbce50706abee0f8006ea31295dea562c07edff3",
+      "at": "2026-10-10T21:14:54+02:00",
+      "subject": "Anchor every tender bid on the cheapest target and never counter on a bad structure",
+      "projectWork": true
+    },
+    {
+      "sha": "f8ee0b1aa1b7d4d721d6c774472d86f89c2490ba",
+      "at": "2026-10-10T21:30:10+02:00",
+      "subject": "Accept a tender's cheapest final offer at once and survive ended threads",
+      "projectWork": true
+    },
+    {
+      "sha": "527674df236ed71d1d01fb5391ec3cf8463d29e4",
+      "at": "2026-10-10T21:47:28+02:00",
+      "subject": "Keep their cheapest-for-us structure on the table, read hidden-case facts, fix CI",
+      "projectWork": true
+    },
+    {
+      "sha": "1f9c05d548efc36c7f0ade4e70f9d613d853106f",
+      "at": "2026-10-10T21:55:59+02:00",
+      "subject": "Document that init drops surfaces whose path was pruned",
+      "projectWork": true
+    },
+    {
+      "sha": "50899c066b343af8f6b12a6c43f154440587c3eb",
+      "at": "2026-10-10T22:03:46+02:00",
+      "subject": "Never offer a coverage-trap structure; install uv in CI",
+      "projectWork": true
+    },
+    {
+      "sha": "840ec3c69dd2ed99f729d7603d985ab7e76d93a1",
+      "at": "2026-10-10T22:07:17+02:00",
+      "subject": "Document the CI uv install and the menu's trap guard",
+      "projectWork": true
+    },
+    {
+      "sha": "b3be806e787fad06b98c04cc6b3e04fb78c8f523",
+      "at": "2026-10-10T22:10:05+02:00",
+      "subject": "Hand over the haggle work: supplier model, fixes, Sunday steps",
+      "projectWork": true
+    },
+    {
+      "sha": "15a06a34997b3999523cbc80056c59b3af59a35e",
+      "at": "2026-10-10T22:11:05+02:00",
+      "subject": "Say which run records are scripted probes",
+      "projectWork": true
+    },
+    {
+      "sha": "3fe04c503d9fa443c89268dd42882ab004cef2ff",
+      "at": "2026-10-10T22:17:08+02:00",
+      "subject": "State of the art",
+      "projectWork": true
+    },
+    {
+      "sha": "dee671bf6b2fb214882d79f1d0f1ac7e359911a3",
+      "at": "2026-10-10T22:59:58+02:00",
+      "subject": "Price money one point cheaper for suppliers; keep only the cheapest clause package",
+      "projectWork": true
+    },
+    {
+      "sha": "c06bb60db906ba81dcd6c15efb6081be627cee47",
+      "at": "2026-10-10T23:02:09+02:00",
+      "subject": "Record the P02 fixed-price probe",
+      "projectWork": true
+    },
+    {
+      "sha": "f0c72ec333d8420a1fae2e075d3b544252aaaabb",
+      "at": "2026-10-10T23:22:54+02:00",
+      "subject": "Record the P11 all-levers probe: attachments are checked, questions reveal the lever",
+      "projectWork": true
+    },
+    {
+      "sha": "f0ca3fb0a24711fad32f2e1a53740f91f2cd49a1",
+      "at": "2026-10-10T23:40:39+02:00",
+      "subject": "Record the last P11 probes: text promises, pressure and a high anchor all lose",
+      "projectWork": true
+    },
+    {
+      "sha": "67aadcc5f0106818a948362cb66b706f658f0f8f",
+      "at": "2026-10-10T23:52:03+02:00",
+      "subject": "Never offer above the alternative, keep must-haves, share the rate limit per key",
+      "projectWork": true
+    },
+    {
+      "sha": "c32bd6b252e774af4deba010e83f93c1c5c4a8e0",
+      "at": "2026-10-10T23:53:27+02:00",
+      "subject": "Resume a crashed final session whatever the 409 says",
+      "projectWork": true
+    },
+    {
+      "sha": "678f25733c8ca5b31393c3a8994b1347c6cad6e3",
+      "at": "2026-10-10T23:54:10+02:00",
+      "subject": "Say in the README how the final runner restarts and shares the rate limit",
+      "projectWork": true
+    },
+    {
+      "sha": "8033e6a94e865c87077ccff21e37c2172203ad44",
+      "at": "2026-10-11T00:05:36+02:00",
+      "subject": "Record the P11 loophole session: fixed terms are refused, the boss holds",
+      "projectWork": true
+    },
+    {
+      "sha": "32bad549f9a53255011f35397b2c03ad298fec5b",
+      "at": "2026-10-11T00:17:57+02:00",
+      "subject": "Record the three trick sessions: currency, text vs sheet, gaslighting, owner, contract",
+      "projectWork": true
+    },
+    {
+      "sha": "c4fb3d59d4e3ad299befa795d11e5bb415c7972c",
+      "at": "2026-10-11T00:35:52+02:00",
+      "subject": "Save what we learned and how to run the Live Final",
+      "projectWork": true
+    },
+    {
+      "sha": "445ea04a885515d0ff6136d29afd7c2050939be6",
+      "at": "2026-10-11T08:45:53+02:00",
+      "subject": "Stop wasting counted arguments, give each rival offer its own marker, record the arena tests",
+      "projectWork": true
+    },
+    {
+      "sha": "60ab25808e447c6a843a254086578776c2edb575",
+      "at": "2026-10-11T08:48:32+02:00",
+      "subject": "Keep only the cheapest tender bidder live once suppliers answer slowly",
+      "projectWork": true
+    },
+    {
+      "sha": "30a88b7c31a29c4d1bc59a6f9e00381f17d8e232",
+      "at": "2026-10-11T08:48:53+02:00",
+      "subject": "Say in the README that the built-in prompt runs and the old draft is ignored",
+      "projectWork": true
+    },
+    {
+      "sha": "60d93a53ae5ddf9ae680cbaa73fccf8d97872f4a",
+      "at": "2026-10-11T08:52:12+02:00",
+      "subject": "Point the README at the git-ignored copy of the old prompt draft",
+      "projectWork": true
+    },
+    {
+      "sha": "adb9b45ecd9753173169f7f78d57cc64ce8f6ab8",
+      "at": "2026-10-11T08:52:51+02:00",
+      "subject": "Describe the slow-reply tender focus in the design doc",
+      "projectWork": true
+    }
+  ],
+  "commitActivity": [
+    {
+      "hour": "2026-10-10T17:00:00+02:00",
+      "commits": 2
+    },
+    {
+      "hour": "2026-10-10T18:00:00+02:00",
+      "commits": 1
+    },
+    {
+      "hour": "2026-10-10T19:00:00+02:00",
+      "commits": 6
+    },
+    {
+      "hour": "2026-10-10T20:00:00+02:00",
+      "commits": 3
+    },
+    {
+      "hour": "2026-10-10T21:00:00+02:00",
+      "commits": 4
+    },
+    {
+      "hour": "2026-10-10T22:00:00+02:00",
+      "commits": 6
+    },
+    {
+      "hour": "2026-10-10T23:00:00+02:00",
+      "commits": 6
+    },
+    {
+      "hour": "2026-10-11T00:00:00+02:00",
+      "commits": 3
+    },
+    {
+      "hour": "2026-10-11T08:00:00+02:00",
+      "commits": 5
+    }
+  ],
+  "runs": {
+    "records": 312,
+    "onlineRecords": 310,
+    "offlineRecords": 2,
+    "uniqueSessionIds": 305,
+    "completedRecords": 293,
+    "completedDeals": 288,
+    "models": {
+      "gpt-6.1-sol": 176,
+      "gpt-6-luna": 78,
+      "scripted": 58
+    },
+    "statuses": {
+      "done": 293,
+      "running": 11,
+      "error": 8
+    },
+    "source": "simulation/starter-kit/runs/*.jsonl"
+  },
+  "latestSuite": [
+    {
+      "case": "P11",
+      "score": 70.98962346486537,
+      "cOpen": 817578.0,
+      "cDeal": 750082.5,
+      "reduction": 67495.5,
+      "deal": true,
+      "mustHavesOk": true,
+      "source": "simulation/starter-kit/runs/20261011-014457-1b1d.jsonl"
+    },
+    {
+      "case": "P10",
+      "score": 66.29052177602854,
+      "cOpen": 1932492.18,
+      "cDeal": 1532385.6,
+      "reduction": 400106.57999999984,
+      "deal": true,
+      "mustHavesOk": true,
+      "source": "simulation/starter-kit/runs/20261011-014457-2285.jsonl"
+    },
+    {
+      "case": "P08",
+      "score": 64.62039794860345,
+      "cOpen": 1135887.28,
+      "cDeal": 1022428.11,
+      "reduction": 113459.17000000004,
+      "deal": true,
+      "mustHavesOk": true,
+      "source": "simulation/starter-kit/runs/20261011-014457-347f.jsonl"
+    },
+    {
+      "case": "P02",
+      "score": 73.53436202311802,
+      "cOpen": 2282867.49,
+      "cDeal": 2248046.44,
+      "reduction": 34821.05000000028,
+      "deal": true,
+      "mustHavesOk": true,
+      "source": "simulation/starter-kit/runs/20261011-014457-40ab.jsonl"
+    },
+    {
+      "case": "P07",
+      "score": 75.99706752376264,
+      "cOpen": 391027.4,
+      "cDeal": 321272.8,
+      "reduction": 69754.60000000003,
+      "deal": true,
+      "mustHavesOk": true,
+      "source": "simulation/starter-kit/runs/20261011-014457-5922.jsonl"
+    },
+    {
+      "case": "P01",
+      "score": 95.28154292643968,
+      "cOpen": 1153779.74,
+      "cDeal": 1099503.6,
+      "reduction": 54276.1399999999,
+      "deal": true,
+      "mustHavesOk": true,
+      "source": "simulation/starter-kit/runs/20261011-014457-a580.jsonl"
+    },
+    {
+      "case": "P04",
+      "score": 86.04451426623068,
+      "cOpen": 198846.33,
+      "cDeal": 196852.67,
+      "reduction": 1993.6599999999744,
+      "deal": true,
+      "mustHavesOk": true,
+      "source": "simulation/starter-kit/runs/20261011-014457-b3d4.jsonl"
+    },
+    {
+      "case": "P03",
+      "score": 92.28331929713947,
+      "cOpen": 4246314.02,
+      "cDeal": 3935069.22,
+      "reduction": 311244.79999999935,
+      "deal": true,
+      "mustHavesOk": true,
+      "source": "simulation/starter-kit/runs/20261011-014457-bc90.jsonl"
+    },
+    {
+      "case": "P18",
+      "score": 60.60969670428098,
+      "cOpen": 295173.23,
+      "cDeal": 251217.89,
+      "reduction": 43955.33999999997,
+      "deal": true,
+      "mustHavesOk": true,
+      "source": "simulation/starter-kit/runs/20261011-014457-bda3.jsonl"
+    },
+    {
+      "case": "P05",
+      "score": 86.52458165587545,
+      "cOpen": 305544.96,
+      "cDeal": 234490.29,
+      "reduction": 71054.67000000001,
+      "deal": true,
+      "mustHavesOk": true,
+      "source": "simulation/starter-kit/runs/20261011-014457-f142.jsonl"
+    }
+  ],
+  "suiteSummary": {
+    "meanScore": 77.21756275863443,
+    "cOpen": 12759510.629999999,
+    "cDeal": 11591349.120000001,
+    "reduction": 1168161.5099999993,
+    "deals": 10,
+    "mustHavesOk": 10,
+    "httpResponses": 114,
+    "httpErrors": 0,
+    "decisionFallbacks": 0,
+    "source": "docs/haggle-strategy-analysis.md:7"
+  },
+  "suiteProgression": [
+    {
+      "batch": "20261010-195439",
+      "meanScore": 65.25005364452008,
+      "cases": 10,
+      "deals": 10,
+      "model": [
+        "gpt-6.1-sol"
+      ],
+      "sourceGlob": "simulation/starter-kit/runs/20261010-195439-*.jsonl"
+    },
+    {
+      "batch": "20261010-202006",
+      "meanScore": 70.98651805598544,
+      "cases": 10,
+      "deals": 10,
+      "model": [
+        "gpt-6.1-sol"
+      ],
+      "sourceGlob": "simulation/starter-kit/runs/20261010-202006-*.jsonl"
+    },
+    {
+      "batch": "20261011-014457",
+      "meanScore": 77.21756275863443,
+      "cases": 10,
+      "deals": 10,
+      "model": [
+        "gpt-6.1-sol"
+      ],
+      "sourceGlob": "simulation/starter-kit/runs/20261011-014457-*.jsonl"
+    }
+  ],
+  "examples": [
+    {
+      "title": "Higher unit price, lower total cost",
+      "case": "P03",
+      "unitPriceChosen": 432.15,
+      "paymentDaysChosen": 90,
+      "unitPriceAlternative": 427.49,
+      "paymentDaysAlternative": 14,
+      "source": "docs/haggle-strategy-analysis.md:32",
+      "caveat": "Observed standing package comparison, not randomized."
+    },
+    {
+      "title": "Payment terms preserved value",
+      "case": "P18",
+      "historicalScore": 66.35,
+      "latestScore": 60.61,
+      "priceBoth": 5.2,
+      "historicalPaymentDays": 90,
+      "latestPaymentDays": 14,
+      "source": "docs/haggle-experiment-plan.md:59",
+      "caveat": "Observed comparison, not matched causal trial."
+    },
+    {
+      "title": "Money-rate correction",
+      "case": "P02",
+      "beforeScore": 65.9,
+      "afterScore": 73.5,
+      "source": "HANDOVER.md:16",
+      "caveat": "Documented historical before/after, not isolated replicated trial."
+    },
+    {
+      "title": "Reliability under complete model failure",
+      "cases": 50,
+      "deals": 45,
+      "alternatives": 5,
+      "unresolved": 0,
+      "durationMinutes": 11.4,
+      "source": "HANDOVER.md:23",
+      "caveat": "Offline rehearsal, not hosted final performance."
+    }
+  ],
+  "citations": [
+    "docs/design.md:12",
+    "docs/haggle-strategy-analysis.md:7",
+    "docs/haggle-strategy-analysis.md:64",
+    "HANDOVER.md:23",
+    "docs/haggle-evidence.md:18"
+  ],
+  "caveats": [
+    "Financial values are simulated scoring total costs, not realized savings.",
+    "Suite progression changes code/policy; not causal attribution.",
+    "No final results present.",
+    "Leaderboard snapshots are best-of and dated.",
+    "Records include scripted probes, errors and stale running entries."
+  ]
+}
