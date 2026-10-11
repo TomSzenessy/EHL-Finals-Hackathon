@@ -73,7 +73,9 @@ the supplier's reasons), **Suppliers** (the file of any supplier, with its sessi
 says about us: quota, best score per case with the session and rounds behind it, unplayed hosted cases (they
 count 0), every team's score per final case side by side (our rank and gap to the best per case, from
 `/v1/results/{team}`; for people only, the agent never reads it), practice board, every session, downloads, health) and **Settings** (provider,
-model, base URL, endpoint, timeout, write-only API key, system prompt file). Only the tabs that show the running
+model, base URL, endpoint, timeout, write-only API key, system prompt file; the prompt box shows the prompt a new run
+uses, a prompt without the `"offers"` format is refused, and every tab warns when the code on disk changed after the
+server started, since Python keeps the code it imported). Only the tabs that show the running
 negotiation redraw while it runs; Team, Suppliers and Settings never refetch or lose typed edits. A run whose
 process stopped mid-way (its file still says running) is shown as stopped; once per server start the page asks the
 arena how that session ended and keeps the answer in the git-ignored `.haggle_cache/`, never in the run file.
