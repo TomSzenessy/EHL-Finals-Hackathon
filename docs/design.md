@@ -56,7 +56,8 @@ the rule in code for each lesson: [`haggle-evidence.md`](./haggle-evidence.md).
   allows; when the cheapest bidder agrees, the others get two last rounds against its price; a cheapest bidder that
   only sent a final offer is taken at once (no keep-alive messages). A non-firm bidder cannot close the auction
   while another bidder remains active; its local exhaustion leaves the other threads running (#4).
-- **Live Final** (`final.py`, `arena-haggle-final`): polls only the final case list, opens each case of a running
+- **Live Final** (`final.py`, `arena-haggle-final`): logs its model, prompt, data and Sunday release folder once at
+  start (`release None` means the release is missing), then polls only the final case list, opens each case of a running
   wave once, plays a wave's cases in parallel, and 75 s before the wave's cap (or the slowest round plus 15 s)
   closes each case on its cheapest standing sheet. A crashed run is resumed from the arena: the running session is
   read from the 409 (any session id in it) or, failing that, from our own final session list. Runs are recorded

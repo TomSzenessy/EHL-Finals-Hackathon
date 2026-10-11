@@ -44,7 +44,7 @@ All commands from `simulation/starter-kit`, on the machine and network used for 
 | 09:00 | Pre-flight (1 practice session): `PYTHONPATH=. .venv/bin/python probes/batch.py case:P02` | a deal, score about 0.735, in under 5 min |
 | by 11:30 | `uv run arena me` (the key works); LLM credits and rate limits for about an hour of 10 parallel cases | team shown; provider dashboard |
 | 11:30 | Freeze candidate: `git status` clean, `git push`, note `git rev-parse HEAD` | the hash goes into the ehl.gg description |
-| 11:45 | `caffeinate -dimsu uv run --extra ui arena-haggle-final 2>&1 \| tee -a final.log` (power cable in, lid open) | log line `haggle final: model ...` |
+| 11:45 (11:55 at the latest) | After the freeze commit, never before (the runner imports the code once): `caffeinate -dimsu uv run --extra ui arena-haggle-final 2>&1 \| tee -a final.log` (power cable in, lid open, practice page closed: open sessions count against the 10 per key) | log line `haggle final: model ..., prompt built-in, data ..., release .../release-sunday` (not `None`); then silence while the final list answers 403 |
 | 12:00-~13:00 | Hands off. Read only `final.log` and the runs folder; do not open the page's Team tab (it reads the board) | each wave: `case:... done score=... deal=True` lines |
 | crash | the same command again | it logs the resumed cases |
 

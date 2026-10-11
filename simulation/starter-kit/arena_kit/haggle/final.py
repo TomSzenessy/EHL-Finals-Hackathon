@@ -79,7 +79,8 @@ def main(argv=None):
     if not llm.configured:
         raise SystemExit("Set the model and its key first (Settings tab or .env).")
     system, source = settings.prompt()
-    log.warning("haggle final: model %s, prompt %s, data %s", llm.model, source, pkg.root if pkg else None)
+    log.warning("haggle final: model %s, prompt %s, data %s, release %s", llm.model, source, pkg.root if pkg else None,
+                getattr(pkg, "release", None))  # fmt: skip
     runs = play_waves(Arenas(pkg.facts if pkg else {}), pkg, llm, system, source, Path(a.runs), a.waves)
     for r in runs:
         print(r.meta.get("case_id"), r.meta.get("status"), r.meta.get("score"))

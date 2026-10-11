@@ -17,6 +17,33 @@ uv run --extra ui arena-haggle           # practice: a local page to run and ins
 uv run pytest -q                          # tests
 ```
 
+### Pre-final checklist (Sunday, code freeze and wave 1 at 12:00)
+
+The final runner imports the code once when it starts, so it must start **after** the last commit and must be
+**polling before 12:00**; from 12:00 nobody touches the machine. All commands from `simulation/starter-kit`.
+
+1. **By 11:30, the Sunday release:** `uv run arena data --out ../data/sunday`, then move the folder holding the
+   release's `facts.json` to `../data/release-sunday` (or `export ARENA_RELEASE=<that folder>`). Check:
+   `uv run --extra ui python -c "from arena_kit.haggle.__main__ import find_data; print(find_data().release)"`
+   prints the folder, not `None`.
+2. **By 11:40, freeze:** `uv run pytest -q` passes; commit or stash every change (`git status` clean), `git push`,
+   `git rev-parse HEAD`; put the repo URL and that hash on ehl.gg. No commit and no push after this.
+3. **By 11:55, stop every practice loop** (the haggle page, `probes/batch.py`, `arena run`): open practice sessions
+   count against our 10 open sessions and can block wave 1. `uv run arena me` and no run still going.
+4. **11:45, at the latest 11:55, start the runner** in its own terminal (power cable in, lid open, stable network):
+
+   ```bash
+   caffeinate -dimsu uv run --extra ui arena-haggle-final 2>&1 | tee -a final.log
+   ```
+
+   The first log line must read `haggle final: model <model>, prompt built-in, data .../simulation/data, release
+   .../release-sunday`. Until wave 1 opens it polls `GET /v1/cases?set=final` every 4 s and prints nothing (403).
+5. **12:00 to about 13:00, hands off:** read only `final.log` (`case:... start`, then `case:... done score=...
+   deal=...` for each case); never open the page's Team tab, `/leaderboard`, `/results`, `/screen` or `/v1/events`.
+   It exits by itself after wave 5. **If it crashes:** run the same command again; it resumes every open session.
+
+Full runbook and the ehl.gg description: [`docs/live-final.md`](docs/live-final.md).
+
 Environment variables (names only): `ARENA_URL`, `ARENA_API_KEY`, `ARENA_DATA`, `ARENA_RELEASE` (optional),
 `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_ENDPOINT`, `LLM_MODEL`, `LLM_API_KEY` (or `ANTHROPIC_API_KEY`), `LLM_TIMEOUT`.
 
