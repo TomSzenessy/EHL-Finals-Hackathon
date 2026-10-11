@@ -40,6 +40,10 @@ jobs:
       - name: Install uv for the negotiation-workbench surface's tests
         # project.toml verifies simulation/ with `uv run`; uv comes from PyPI, version pinned.
         run: python3 -m pip install --disable-pip-version-check "uv==0.12.0"
+      - name: Install the jury-presentation surface's npm packages
+        # project.toml type-checks presentation/ with `npm exec -- tsc`; without its packages react and remotion
+        # are missing. Exact versions from the lockfile; no install scripts run.
+        run: npm ci --prefix presentation --no-audit --no-fund --ignore-scripts
       - name: Run the verification gate on the matrix interpreter
         # The adopted copy (kit-ci.yml) runs only `repoctl check`; docs/ADAPTATION.md says why.
         run: python3 tools/repoctl.py --root . ci gate
