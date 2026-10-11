@@ -701,3 +701,23 @@ def test_a_supplier_offering_skonto_or_with_weak_credit_is_cash_hungry(pkg):
     assert cash_hungry(dossier(pkg, "sup:70240", case))  # Hrvelec: credit index 246
     assert not cash_hungry(dossier(pkg, "sup:70740", case))  # Werdenfels: family firm, credit 148
     assert not cash_hungry(dossier(pkg, "sup:70710", case))  # Donautal: group, credit 177
+
+
+def test_an_announced_step_is_recognised():
+    from arena_kit.haggle.agent import OWED
+
+    assert OWED.search("We need to clarify this internally - we will come back to you on price.")
+    assert OWED.search("Any further step needs approval from our management.")
+    assert not OWED.search("This is our final offer. Please decide.")
+
+
+def test_round_one_keeps_free_levers_back():
+    """Months beyond the horizon and the supplier's own lead time are what it can still be given in round 2."""
+    from arena_kit.haggle.strategy import beyond_horizon, faster_than_quoted
+
+    case = {"buyer": {"horizon_years": 2}, "term_options": {"contract_months": [12, 24, 36]}}
+    assert beyond_horizon(case, {"contract_months": 36})
+    assert not beyond_horizon(case, {"contract_months": 24})
+    assert not beyond_horizon({**case, "term_options": {"contract_months": [36]}}, {"contract_months": 36})
+    assert faster_than_quoted({"lead_time_days": 42}, {"lead_time_days": 54})
+    assert not faster_than_quoted({"lead_time_days": 56}, {"lead_time_days": 54})

@@ -115,6 +115,27 @@ def _liking(terms, their):
 FAST_PAY_NEEDS_STRAIN = os.environ.get("HAGGLE_FAST_PAY") != "1"
 
 
+# Months beyond the scoring horizon cost us nothing and the supplier values them: keep them for round 2, so its
+# first reply has a move of ours left to answer. P10, another team: 24 months in round 1 drew an open 31.70, then 36
+# months drew a final 31.40 (0.686); our 36 months in round 1 drew a final 31.70 at once (0.663, 21 of 21 runs).
+HOLD_TERM = os.environ.get("HAGGLE_HOLD_TERM") != "0"
+
+
+def beyond_horizon(case, base):
+    months, horizon = base.get("contract_months"), 12 * case["buyer"].get("horizon_years", 0)
+    options = case.get("term_options", {}).get("contract_months") or []
+    return (
+        isinstance(months, int | float) and horizon and months > horizon and horizon in options
+    )
+
+
+def faster_than_quoted(base, granted):
+    """Round 1: a lead time faster than the supplier quoted asks a capacity-bound supplier for what it rations; P10
+    answered every such opening with its final offer, an opening at its own lead time with a counter."""
+    lead, quoted = base.get("lead_time_days"), (granted or {}).get("lead_time_days")
+    return isinstance(lead, int | float) and isinstance(quoted, int | float) and lead < quoted
+
+
 def fast_pay_trap(case, base, std, est, asks, standing=None):
     """A package paying faster than the supplier's standard, or than its standing sheet once that sheet gave us longer
     payment: never hand back a term it already granted (P18: its 90-day counter went to 30 days, at the same price,
@@ -132,7 +153,8 @@ def fast_pay_trap(case, base, std, est, asks, standing=None):
     return not any(f"('payment_days', '{days}')" in k for k in asks)  # one of its own sheets pays this fast
 
 
-def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE, fixed_only=False, granted=None):
+def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE, fixed_only=False, granted=None,
+         hold_term=False):
     """Equal-cost packages: for each structure the price that costs us `c_goal`. Packages with the same price and
     cost keep only the variant the supplier likes best (`_liking`). The supplier's own structure comes first, then
     the rest, best for the supplier first (by our estimate of what the deal is worth to it in cash). `their`: the
@@ -161,6 +183,8 @@ def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE, fixed_on
         if repr(base) not in at_ref:
             continue
         if fast_pay_trap(case, base, std, est, asks, granted):
+            continue
+        if hold_term and (beyond_horizon(case, base) or faster_than_quoted(base, granted)):
             continue
         if at_ref[repr(base)] > best_at_ref * (1 + TRAP_MARGIN):
             # At their price this structure costs us far more than the best one (a 12-month term leaves half the need
@@ -212,7 +236,7 @@ def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE, fixed_on
         # 12-month structure, which it agreed to (P18: 5.98 for a 12-month contract, score 0.04).
         reach = reachable_c(case, std, est, ref_price, fixed_only)
         if math.isfinite(reach) and reach > c_goal:
-            return menu(case, reach * 1.0002, std, est, ref_price, their, size, fixed_only, granted)
+            return menu(case, reach * 1.0002, std, est, ref_price, their, size, fixed_only, granted, hold_term)
     return out
 
 

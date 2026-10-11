@@ -26,6 +26,15 @@ ID_RE = re.compile(r"\b(?:idx|quote|offer|sc|qn|po|cost|fc|news|doc|ctr):[\w.:@#
 TOKEN = re.compile(r"\[\[(c\d+|r\d+)\]\]")
 FIRM = {"agreed", "final_offer"}
 MAX_CLAIMS = 3  # the arena reads at most 3 arguments per message
+OWED = re.compile(
+    r"clarify (this|it) internally|come back to you on (the )?price|(further|next) step needs approval|"
+    r"needs? (the )?approval (of|from) our management",
+    re.I,
+)
+OWED_HOLD = os.environ.get("HAGGLE_OWED_HOLD") != "0"
+TIGHT_NEWS = {"allocation", "full_order_book"}
+TIGHT_FIRST_ASK = float(os.environ.get("HAGGLE_TIGHT_FIRST_ASK", "0.92"))
+OWED_STEP = 0.1  # share of the gap to their sheet we still give while a step is owed
 DECISION_BUDGET_S = 40  # the arena allows 60 s from the supplier's reply; an RFQ may queue behind another thread
 AT_TARGET = 1.004  # a sheet within 0.4% of the estimated best C needs no further push
 PER_SUPPLIER = ("quote:", "offer:")  # IDs the arena counts once per supplier; every other ID once per case
@@ -478,6 +487,13 @@ class Negotiator:
             if min(m["c"] for m in self.trade_items) < min(rival, alt):
                 return "terms", None
         eps = max(1.0, 0.0005 * now)
+        if OWED_HOLD and sched.ours and left > 1 and OWED.search(last.get("body") or ""):
+            # It announced a further step ("we need to clarify this internally", "needs approval from our
+            # management"): the step comes on its next reply anyway, so hold our last ask and never settle now.
+            # Another team's 1,572 sessions: the step followed 31 of 40 times, no walk-aways; holding took P05 to
+            # 0.814 twice against 0.61-0.69 when conceding.
+            # (A tenth of the gap, not an exact repeat: the repeat guard would turn that into a fifth.)
+            return "send", min(goal, sched.ours[-1] + OWED_STEP * max(now - sched.ours[-1], 0))
         if goal >= now - eps and moved and left > 1 and sched.ours:
             goal = sched.ours[-1] + 0.3 * max(now - sched.ours[-1], 0)  # still moving: a small step, not a settle
         if goal > alt and now > alt:
@@ -542,6 +558,13 @@ class Negotiator:
         self.trade_items = items[:3]
         return self.trade_items
 
+    def capacity_tight(self):
+        """A single supplier that rations capacity: a capacity case, or news of allocation or a full order book."""
+        if len(self.case.get("suppliers", [])) > 1:
+            return False
+        news = (getattr(self, "dossier", None) or {}).get("news") or []
+        return self.case.get("type") == "capacity" or any(n.get("topic") in TIGHT_NEWS for n in news)
+
     def offer_menu(self, events, std, goal, mode):
         if mode == "terms":
             return getattr(self, "trade_items", [])
@@ -552,7 +575,10 @@ class Negotiator:
         their = sorted((t for _, t in offers(events) if t.get("unit_price")), key=lambda t: self.c(t, std))
         if goal is None or not ref:
             return []
-        items = st.menu(self.case, goal, std, self.est, ref, their, fixed_only=self.fixed_only, granted=now_terms)
+        first = not any(m.get("from") == "buyer" and m.get("term_sheets") for m in events)
+        hold = st.HOLD_TERM and first
+        items = st.menu(self.case, goal, std, self.est, ref, their, fixed_only=self.fixed_only, granted=now_terms,
+                        hold_term=hold)  # fmt: skip
         sched = self.schedule
         if mode == "send" and sched and sched.ours and goal > sched.c_anchor:
             # A structure the supplier has not seen from us yet starts again near our opening C: priced at the
@@ -566,6 +592,7 @@ class Negotiator:
                 their,
                 fixed_only=self.fixed_only,
                 granted=now_terms,
+                hold_term=hold,
             )
             by_struct = {_struct(m["terms"]): m for m in fresh if _struct(m["terms"]) not in self.offered}
             items = [by_struct.get(_struct(m["terms"]), m) for m in items]
@@ -579,6 +606,15 @@ class Negotiator:
                 items = [{"key": "A", "terms": sheet, "c": self.c(sheet, std), "worth": 0}]
             else:
                 items = items[:1]
+        if hold and self.capacity_tight():
+            # No lowball to a capacity-tight supplier: P10 answered every first ask at or below 83-89% of its price
+            # with its final offer; asks at 86-93% on its own lead time drew a counter, then 31.40-31.70 (0.671-0.686,
+            # two other teams). Lift the first ask to TIGHT_FIRST_ASK of its price, never above it.
+            floor = round(TIGHT_FIRST_ASK * ref, 2)
+            for m in items:
+                if m["terms"]["unit_price"] < floor:
+                    m["terms"] = complete_offer(self.case, {**m["terms"], "unit_price": floor})
+                    m["c"] = self.c(m["terms"], std)
         cheaper = [m for m in items if m["c"] < self.alt_c()]  # a clause package may sit up to 1% over the goal
         if len(cheaper) < len(items):
             items = cheaper

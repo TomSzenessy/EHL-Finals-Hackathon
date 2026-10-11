@@ -35,6 +35,13 @@ the rule in code for each lesson: [`haggle-evidence.md`](./haggle-evidence.md).
   No package pays faster than the supplier's standard unless it is short of cash (strain news, a skonto in its
   master data, or a credit index of 240 or worse: `economics.cash_hungry`) or one of its sheets asked for it, and none pays faster than its standing sheet once that sheet granted longer payment
   (`strategy.fast_pay_trap`; `HAGGLE_FAST_PAY=1` turns it off): suppliers counter on our structure at the same price.
+  Round 1 keeps free levers back for round 2: no contract beyond the scoring horizon and no lead time faster than
+  the supplier quoted (`strategy.beyond_horizon`, `faster_than_quoted`; `HAGGLE_HOLD_TERM=0` turns it off). A single
+  capacity-tight supplier (capacity case, allocation or full-order-book news) gets a first ask of at least 92% of its
+  price (`HAGGLE_TIGHT_FIRST_ASK`): deeper first asks drew P10's final offer at once. While a supplier announces a
+  step still to come ("clarify this internally", "needs approval from our management") we give only a tenth of the
+  gap and never settle (`agent.OWED`, `HAGGLE_OWED_HOLD=0` turns it off). Sources: our runs and two other teams'
+  published findings (WhemDev ehl-tacto, sellm), recorded in `docs/haggle-bug-list.md`.
 - **Claims are computed, not written.** `context.claims` turns facts.json into sentences the arena checks; the
   model places them with `[[c3]]`, code fits them into the sentence. An ID the arena counts once per case (all but
   `quote:`/`offer:`) is spent for every thread once cited. Unknown IDs in the text are stripped. Beyond the case
