@@ -32,6 +32,9 @@ the rule in code for each lesson: [`haggle-evidence.md`](./haggle-evidence.md).
   Money is worth one point less to a supplier than to us until its own sheets show its rate (a supplier under
   financial strain keeps ours), so in a supplier-health case the longest payment term is the cheapest for us; of the
   clause packages that cannot reach the goal only the cheapest stays on the menu (P02: agreed in round 1 either way).
+  No package pays faster than the supplier's standard unless it is short of cash (strain news, a skonto in its
+  master data, or a credit index of 240 or worse: `economics.cash_hungry`) or one of its sheets asked for it, and none pays faster than its standing sheet once that sheet granted longer payment
+  (`strategy.fast_pay_trap`; `HAGGLE_FAST_PAY=1` turns it off): suppliers counter on our structure at the same price.
 - **Claims are computed, not written.** `context.claims` turns facts.json into sentences the arena checks; the
   model places them with `[[c3]]`, code fits them into the sentence. An ID the arena counts once per case (all but
   `quote:`/`offer:`) is spent for every thread once cited. Unknown IDs in the text are stripped. Beyond the case

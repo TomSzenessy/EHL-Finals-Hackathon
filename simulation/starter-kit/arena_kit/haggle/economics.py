@@ -43,13 +43,28 @@ def full_standard(dos, pdf_standard):
     return {**{k: v for k, v in base.items() if v is not None}, **pdf_standard}
 
 
+WEAK_CREDIT = 240  # credit index (lower is better): from here on cash is dear to a supplier
+
+
+def cash_hungry(dos):
+    """A supplier that pays for fast cash: it offers a skonto (P05 Dralveck, 2% in 10 days: 27.50 at 14 days, 0.865,
+    against 28.00 at 30 days, 0.824) or has a weak credit index. Groups with good credit (P08, P18) do not."""
+    master, intel = dos.get("master") or {}, dos.get("intel") or {}
+    master = master[0] if isinstance(master, list) and master else master
+    intel = intel[0] if isinstance(intel, list) and intel else intel
+    credit = (intel or {}).get("credit_index")
+    return bool((master or {}).get("skonto_days")) or (isinstance(credit, int | float) and credit >= WEAK_CREDIT)
+
+
 def estimate(case, dos, std, ask=None):
     """Our model of the supplier for `supplier_value`; `full_cost` only if the data has a should-cost,
     capped just under the supplier's own ask (the should-cost is only good to about +/-5%)."""
     rate = case["buyer"]["interest_rate"]
-    if not any(n.get("topic") in STRAIN_TOPICS for n in dos.get("news", [])):
+    strained = any(n.get("topic") in STRAIN_TOPICS for n in dos.get("news", []))
+    if not strained:
         rate -= SUPPLIER_RATE_DISCOUNT
-    est = {"standard": std, "interest_rate": rate}
+    # cash-hungry, fixed from the data: the rate is relearnt from its sheets later (`Negotiator.learn_money`)
+    est = {"standard": std, "interest_rate": rate, "strained": strained or cash_hungry(dos)}
     part = (case.get("parts") or [None])[0]
     rows = [r for r in dos.get("should_cost", []) if r["part_id"] == part] or dos.get("should_cost", [])
     if rows and rows[0].get("unit_cost"):

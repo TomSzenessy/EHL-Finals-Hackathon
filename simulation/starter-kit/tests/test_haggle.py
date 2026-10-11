@@ -674,3 +674,30 @@ def test_a_tender_narrows_to_the_cheapest_bidder_once_suppliers_answer_slowly():
 
     assert Run.focus(SimpleNamespace(slowest_reply=20.0)) == FOCUS
     assert Run.focus(SimpleNamespace(slowest_reply=55.0)) == 1  # 2026-10-11 morning: 409 timeouts at 55 s replies
+
+
+def test_the_menu_never_pays_faster_than_the_supplier_granted():
+    """No faster-than-standard payment without strain news; once the standing sheet pays later, nothing faster than
+    it (P18: our 30-day sheet after its 90-day counter cost 0.12 of score). The rate relearnt from its sheets is not
+    strain."""
+    from arena_kit.haggle.strategy import fast_pay_trap
+
+    case = {"buyer": {"interest_rate": 0.08}}
+    std, calm, strained = {"payment_days": 30}, {"interest_rate": 0.15, "strained": False}, {"strained": True}
+    assert fast_pay_trap(case, {"payment_days": 14}, std, calm, {})
+    assert not fast_pay_trap(case, {"payment_days": 14}, std, strained, {})
+    assert not fast_pay_trap(case, {"payment_days": 14}, std, calm, {"[('payment_days', '14')]": 5.0})  # it asked
+    assert not fast_pay_trap(case, {"payment_days": 30}, std, calm, {})
+    assert fast_pay_trap(case, {"payment_days": 30}, std, calm, {}, {"payment_days": 90})  # it granted 90
+    assert not fast_pay_trap(case, {"payment_days": 90}, std, calm, {}, {"payment_days": 90})
+
+
+def test_a_supplier_offering_skonto_or_with_weak_credit_is_cash_hungry(pkg):
+    from arena_kit.haggle.context import dossier
+    from arena_kit.haggle.economics import cash_hungry
+
+    case = {"parts": [], "buyer": {}}
+    assert cash_hungry(dossier(pkg, "sup:70210", case))  # Dralveck: 2% skonto in 10 days
+    assert cash_hungry(dossier(pkg, "sup:70240", case))  # Hrvelec: credit index 246
+    assert not cash_hungry(dossier(pkg, "sup:70740", case))  # Werdenfels: family firm, credit 148
+    assert not cash_hungry(dossier(pkg, "sup:70710", case))  # Donautal: group, credit 177

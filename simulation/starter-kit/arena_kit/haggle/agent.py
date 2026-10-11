@@ -552,7 +552,7 @@ class Negotiator:
         their = sorted((t for _, t in offers(events) if t.get("unit_price")), key=lambda t: self.c(t, std))
         if goal is None or not ref:
             return []
-        items = st.menu(self.case, goal, std, self.est, ref, their, fixed_only=self.fixed_only)
+        items = st.menu(self.case, goal, std, self.est, ref, their, fixed_only=self.fixed_only, granted=now_terms)
         sched = self.schedule
         if mode == "send" and sched and sched.ours and goal > sched.c_anchor:
             # A structure the supplier has not seen from us yet starts again near our opening C: priced at the
@@ -565,6 +565,7 @@ class Negotiator:
                 ref,
                 their,
                 fixed_only=self.fixed_only,
+                granted=now_terms,
             )
             by_struct = {_struct(m["terms"]): m for m in fresh if _struct(m["terms"]) not in self.offered}
             items = [by_struct.get(_struct(m["terms"]), m) for m in items]
@@ -830,7 +831,7 @@ class Negotiator:
             # their own structure at 98% of its price (a 12-month sheet they then agreed to scored 0.04)
             their = [x for _, x in offers(events) if x.get("unit_price")]
             items = st.menu(case, 0.98 * self.their_c(events, std), std, self.est, price, their,
-                            fixed_only=self.fixed_only)  # fmt: skip
+                            fixed_only=self.fixed_only, granted=terms)  # fmt: skip
         if items:
             t, c = items[0]["terms"], items[0]["c"]
         else:

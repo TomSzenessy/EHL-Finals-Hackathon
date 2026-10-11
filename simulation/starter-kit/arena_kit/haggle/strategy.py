@@ -109,13 +109,37 @@ def _liking(terms, their):
     return score
 
 
-def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE, fixed_only=False):
+# Faster payment than the supplier's standard only for a supplier short of cash. Others counter on the fast-pay
+# structure and concede the same price ticks there, so we end at their price with worse payment (P18: 5.20 at 14 days
+# 0.606 vs 5.20 at 90 days 0.663; P05: 27.50 at 14 days 0.865 vs 0.913 at 90). HAGGLE_FAST_PAY=1 restores the old menu.
+FAST_PAY_NEEDS_STRAIN = os.environ.get("HAGGLE_FAST_PAY") != "1"
+
+
+def fast_pay_trap(case, base, std, est, asks, standing=None):
+    """A package paying faster than the supplier's standard, or than its standing sheet once that sheet gave us longer
+    payment: never hand back a term it already granted (P18: its 90-day counter went to 30 days, at the same price,
+    the round after we sent a 30-day sheet; 0.542 against 0.663 at 90 days)."""
+    days, theirs = base.get("payment_days"), std.get("payment_days")
+    if not FAST_PAY_NEEDS_STRAIN or days is None or theirs is None:
+        return False
+    if est.get("strained"):  # strain news (`economics.estimate`), not the rate relearnt from its sheets
+        return False
+    granted = (standing or {}).get("payment_days")
+    if isinstance(granted, int | float) and granted > theirs and days < granted:
+        return True
+    if days >= theirs:
+        return False
+    return not any(f"('payment_days', '{days}')" in k for k in asks)  # one of its own sheets pays this fast
+
+
+def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE, fixed_only=False, granted=None):
     """Equal-cost packages: for each structure the price that costs us `c_goal`. Packages with the same price and
     cost keep only the variant the supplier likes best (`_liking`). The supplier's own structure comes first, then
     the rest, best for the supplier first (by our estimate of what the deal is worth to it in cash). `their`: the
     supplier's sheets, its standing sheet first; we never offer more than it asked for the same structure, nor a
     price more than 22% under its price (no supplier took that, and it reads as an insult). `fixed_only`: no index
-    clause package (`economics.hold_fixed_price`); "their structure" is then theirs without the clause."""
+    clause package (`economics.hold_fixed_price`); "their structure" is then theirs without the clause. `granted`: the
+    supplier's standing sheet (`their` may lead with a cheaper alternative): no package pays faster than it."""
     their = their or []
     standing_terms = complete_offer(case, their[0]) if their else {}
     if fixed_only and standing_terms:
@@ -135,6 +159,8 @@ def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE, fixed_on
         base = {**base, **free_for_them(case, std, base)}
         sheet0 = complete_offer(case, {**base, "unit_price": ref_price})
         if repr(base) not in at_ref:
+            continue
+        if fast_pay_trap(case, base, std, est, asks, granted):
             continue
         if at_ref[repr(base)] > best_at_ref * (1 + TRAP_MARGIN):
             # At their price this structure costs us far more than the best one (a 12-month term leaves half the need
@@ -186,7 +212,7 @@ def menu(case, c_goal, std, est, ref_price, their=None, size=MENU_SIZE, fixed_on
         # 12-month structure, which it agreed to (P18: 5.98 for a 12-month contract, score 0.04).
         reach = reachable_c(case, std, est, ref_price, fixed_only)
         if math.isfinite(reach) and reach > c_goal:
-            return menu(case, reach * 1.0002, std, est, ref_price, their, size, fixed_only)
+            return menu(case, reach * 1.0002, std, est, ref_price, their, size, fixed_only, granted)
     return out
 
 
